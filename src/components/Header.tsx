@@ -28,7 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
               // Fallback if logo.png is not yet uploaded
               e.currentTarget.style.display = 'none';
               e.currentTarget.parentElement?.classList.add('text-white', 'justify-center', 'items-center', 'flex');
-              e.currentTarget.parentElement!.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-guitar"><path d="m11.5 8.5-1.5-1.5"/><path d="m13.5 10.5-1.5-1.5"/><path d="m14.5 14.5-2.5-2.5"/><path d="M15.5 13.5 14 12"/><path d="m16 9.5-2-2"/><path d="m17.5 11.5-2.5-2.5"/><path d="M21 7.5 16.5 3c-1.1-.9-3-.9-4 0l-1 1c-1.1.9-1.1 2.9 0 4l4.5 4.5c1.1.9 2.9.9 4 0l1-1c1.1-.9 1.1-2.9 0-4"/><path d="M3.5 20.5 8 16"/><path d="m6 16-1.5-1.5"/><path d="m7.5 17.5-1.5-1.5"/><path d="M9 19l-1.5-1.5"/><path d="m9.5 15.5-2-2"/><path d="M12 18l-2-2"/><path d="m13.5 16.5-2.5-2.5"/><path d="M16 11.5 11.5 7c-1.1-.9-3-.9-4 0l-3 3c-1.1.9-1.1 2.9 0 4l4.5 4.5c1.1.9 2.9.9 4 0l3-3c1.1-.9 1.1-2.9 0-4"/></svg>';
+              e.currentTarget.parentElement!.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scan-barcode"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 7v10"/><path d="M12 7v10"/><path d="M17 7v10"/></svg>';
             }} />
           </div>
           <div>
@@ -43,6 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
+          
           {/* Frame mode toggle (iPhone mockup view vs full web) */}
           <button
             type="button"
