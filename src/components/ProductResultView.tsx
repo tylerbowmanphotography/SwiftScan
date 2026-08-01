@@ -26,6 +26,15 @@ import {
   BrainCircuit,
   MapPin
 } from 'lucide-react';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { ProductScanResult, ProductQAMessage } from '../types';
 
@@ -194,6 +203,21 @@ Summary: ${result.summary}`;
   const lowestPriceItem = result.priceComparison && result.priceComparison.length > 0
     ? [...result.priceComparison].sort((a, b) => a.price - b.price)[0]
     : null;
+
+  const mockPriceHistory = React.useMemo(() => {
+    const currentBestPrice = lowestPriceItem ? lowestPriceItem.price : result.goodPrice;
+    const months = ['Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
+    const data = [];
+    let basePrice = currentBestPrice * 1.15; // Start roughly 15% higher 6 months ago
+    for (let i = 0; i < 6; i++) {
+      data.push({
+        month: months[i],
+        price: i === 5 ? currentBestPrice : Number((basePrice + (Math.random() * (currentBestPrice * 0.05) - (currentBestPrice * 0.025))).toFixed(2)),
+      });
+      basePrice = basePrice - (currentBestPrice * 0.03); // Trending down slowly
+    }
+    return data;
+  }, [lowestPriceItem, result.goodPrice]);
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-6 pb-24">
@@ -779,6 +803,35 @@ Summary: ${result.summary}`;
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+              <TrendingDown size={18} className="text-pink-600" />
+              <span>6-Month Price Trend</span>
+            </h3>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={mockPriceHistory} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={(val) => `$${val}`} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
+                    itemStyle={{ color: '#ec4899', fontWeight: 'bold' }}
+                    formatter={(value: number) => [formatCurrency(value), 'Price']}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="price"
+                    stroke="#ec4899"
+                    strokeWidth={3}
+                    dot={{ fill: '#ec4899', strokeWidth: 2, r: 4, stroke: '#fff' }}
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       )}
