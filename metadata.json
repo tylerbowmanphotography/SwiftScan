@@ -1,0 +1,6 @@
+{
+  "name": "Heather's Price Scanner",
+  "description": "Scan product photos to get aggregated reviews, sentiment, MSRP, and good price analysis",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
