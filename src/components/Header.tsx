@@ -1,5 +1,5 @@
 import React from 'react';
-import { Guitar, Camera, Bookmark, Search, Smartphone, Monitor } from 'lucide-react';
+import { Camera, Bookmark, Search, Smartphone, Monitor } from 'lucide-react';
 
 interface HeaderProps {
   onOpenScanner: () => void;

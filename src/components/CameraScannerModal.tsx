@@ -47,21 +47,42 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
   }, [isOpen, facingMode]);
 
   useEffect(() => {
+    let controls: any = null;
+    let isCancelled = false;
+
     if (stream && videoRef.current && readerRef.current && !isLoading) {
-      const controlsPromise = readerRef.current.decodeFromVideoElementContinuously(
-        videoRef.current,
-        (result, error) => {
+      readerRef.current
+        .decodeFromVideoElement(videoRef.current, (result, error, ctrls) => {
+          if (isCancelled) return;
           if (result) {
             playChime();
+            if (ctrls) {
+              ctrls.stop();
+            } else if (controls) {
+              controls.stop();
+            }
             stopCamera();
             onScanBarcode(result.getText());
           }
-        }
-      );
-      
+        })
+        .then((c) => {
+          if (isCancelled) {
+            c?.stop();
+          } else {
+            controls = c;
+          }
+        })
+        .catch((err) => {
+          if (!isCancelled) {
+            console.warn('ZXing decode error:', err);
+          }
+        });
+
       return () => {
-        // Clean up decoding on unmount or stream change
-        controlsPromise.catch(() => {});
+        isCancelled = true;
+        if (controls) {
+          controls.stop();
+        }
       };
     }
   }, [stream, isLoading]);
