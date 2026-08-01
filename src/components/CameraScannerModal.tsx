@@ -1,11 +1,13 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Camera, RefreshCw, X, Image as ImageIcon, Zap, AlertCircle, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { BrowserMultiFormatReader } from '@zxing/browser';
 
 interface CameraScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCaptureImage: (base64Image: string) => void;
+  onScanBarcode: (code: string) => void;
   isLoading: boolean;
 }
 
@@ -13,17 +15,25 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
   isOpen,
   onClose,
   onCaptureImage,
+  onScanBarcode,
   isLoading,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
 
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [isFlashOn, setIsFlashOn] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
+
+  useEffect(() => {
+    if (!readerRef.current) {
+      readerRef.current = new BrowserMultiFormatReader();
+    }
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -35,6 +45,49 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
       stopCamera();
     };
   }, [isOpen, facingMode]);
+
+  useEffect(() => {
+    if (stream && videoRef.current && readerRef.current && !isLoading) {
+      const controlsPromise = readerRef.current.decodeFromVideoElementContinuously(
+        videoRef.current,
+        (result, error) => {
+          if (result) {
+            playChime();
+            stopCamera();
+            onScanBarcode(result.getText());
+          }
+        }
+      );
+      
+      return () => {
+        // Clean up decoding on unmount or stream change
+        controlsPromise.catch(() => {});
+      };
+    }
+  }, [stream, isLoading]);
+
+  const playChime = () => {
+    try {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContext) {
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.05);
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.5);
+      }
+    } catch (e) {
+      console.warn('Audio chime failed', e);
+    }
+  };
 
   const startCamera = async () => {
     stopCamera();
@@ -103,26 +156,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     if (!videoRef.current || !canvasRef.current) return;
 
     // Play chime sound
-    try {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContext) {
-        const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.05);
-        gain.gain.setValueAtTime(0, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.5);
-      }
-    } catch (e) {
-      console.warn('Audio chime failed', e);
-    }
+    playChime();
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -176,8 +210,8 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                 <Sparkles size={18} />
               </span>
               <div>
-                <h3 className="font-bold text-sm leading-tight text-white">AI Photo Scanner</h3>
-                <p className="text-[11px] font-medium text-slate-400">Position price tag or item in frame</p>
+                <h3 className="font-bold text-sm leading-tight text-white">Smart Scanner</h3>
+                <p className="text-[11px] font-medium text-slate-400">Scan product photo or UPC barcode</p>
               </div>
             </div>
 
@@ -260,7 +294,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                     />
                   </div>
                   <p className="mt-4 text-xs font-medium text-zinc-300 bg-black/60 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10">
-                    Snap price tag, product box, or item
+                    Snap a photo or hold UPC barcode in frame
                   </p>
                 </div>
               </>

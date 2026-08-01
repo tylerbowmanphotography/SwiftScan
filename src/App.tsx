@@ -104,6 +104,7 @@ export default function App() {
 
       setCurrentScanResult(data.data);
       setIsSearchOpen(false);
+      setIsScannerOpen(false);
     } catch (err: any) {
       console.error('Search error:', err);
       setErrorMessage(err?.message || 'Search failed. Please try again.');
@@ -243,7 +244,7 @@ export default function App() {
               <div className="relative z-10 space-y-4 max-w-xl">
                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-pink-500/20 border border-pink-500/30 rounded-full text-pink-300 text-xs font-bold uppercase tracking-wider">
                   <Sparkles size={14} />
-                  <span>AI Powered Price & Review Scanner</span>
+                  <span>SwiftScan</span>
                 </div>
 
                 <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight leading-tight text-white">
@@ -365,6 +366,7 @@ export default function App() {
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
         onCaptureImage={handleScanImage}
+        onScanBarcode={handleSearchText}
         isLoading={isLoading}
       />
 

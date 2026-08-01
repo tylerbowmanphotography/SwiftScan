@@ -792,12 +792,13 @@ Summary: ${result.summary}`;
                     {formatCurrency(item.price)}
                   </span>
                   <a
-                    href={`https://www.google.com/search?q=${encodeURIComponent(result.productName + ' ' + item.retailer)}`}
+                    href={item.url ? `${item.url}${item.url.includes('?') ? '&' : '?'}tag=ais-affiliate-20` : `https://www.google.com/search?q=${encodeURIComponent(result.productName + ' ' + item.retailer)}+buy&tag=ais-affiliate-20`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3 py-1.5 rounded-xl bg-pink-600 text-white font-bold text-xs shadow-sm hover:bg-pink-700 transition-colors flex items-center gap-1"
+                    title="Disclosure: This is an affiliate link that helps support the app"
                   >
-                    <span>Buy</span>
+                    <span>View Deal</span>
                     <ExternalLink size={13} />
                   </a>
                 </div>
@@ -952,6 +953,14 @@ Summary: ${result.summary}`;
           </div>
         </div>
       )}
+
+      {/* AFFILIATE DISCLOSURE */}
+      <div className="text-center px-4 pt-2">
+        <p className="text-[10px] text-slate-400/80">
+          Disclosure: This site may earn a commission from purchases made through links on this page.
+        </p>
+      </div>
+
       {/* SHARE MODAL */}
       <AnimatePresence>
         {showShareModal && (
@@ -1045,7 +1054,7 @@ Summary: ${result.summary}`;
                   {navigator.share && (
                     <button
                       onClick={() => {
-                        const text = `${result.productName} by ${result.brand}\nTarget Fair Price: ${formatCurrency(result.goodPrice)}\nVerdict: ${result.verdict}\nShared from Heather's Price Scanner`;
+                        const text = `${result.productName} by ${result.brand}\nTarget Fair Price: ${formatCurrency(result.goodPrice)}\nVerdict: ${result.verdict}\nShared from SwiftScan`;
                         navigator.share({
                           title: 'Price Analysis',
                           text: text,

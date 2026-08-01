@@ -33,7 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <div>
             <h1 className="font-extrabold text-lg tracking-tight text-slate-900 dark:text-white leading-tight">
-              Heather's <span className="text-pink-600 dark:text-pink-400">Price Scanner</span>
+              Swift<span className="text-pink-600 dark:text-pink-400">Scan</span>
             </h1>
             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
               Product Scan & Price Advisor
