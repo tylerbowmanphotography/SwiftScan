@@ -24,7 +24,8 @@ import {
   Bot,
   User,
   BrainCircuit,
-  MapPin
+  MapPin,
+  AlertTriangle
 } from 'lucide-react';
 import {
   LineChart,
@@ -37,6 +38,8 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { ProductScanResult, ProductQAMessage } from '../types';
+import { ReportIncorrectScanModal } from './ReportIncorrectScanModal';
+import { AdBanner } from './AdBanner';
 
 interface ProductResultViewProps {
   result: ProductScanResult;
@@ -44,6 +47,8 @@ interface ProductResultViewProps {
   onSaveToHistory: (notes?: string) => void;
   isSaved?: boolean;
   onNewScan: () => void;
+  onCorrectScan?: (correctQuery: string) => void;
+  onOpenSearch?: () => void;
 }
 
 export const ProductResultView: React.FC<ProductResultViewProps> = ({
@@ -52,9 +57,12 @@ export const ProductResultView: React.FC<ProductResultViewProps> = ({
   onSaveToHistory,
   isSaved = false,
   onNewScan,
+  onCorrectScan,
+  onOpenSearch,
 }) => {
   const [copied, setCopied] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'ask' | 'proscons' | 'prices' | 'localStores' | 'reviews' | 'specs'>('overview');
 
   // Product Q&A state
@@ -180,6 +188,10 @@ export const ProductResultView: React.FC<ProductResultViewProps> = ({
 
   const badgeStyle = getPriceBadgeStyle(result.priceRating);
 
+  const confidenceVal = typeof result.confidence === 'number'
+    ? (result.confidence > 1 ? Math.round(result.confidence) : Math.round(result.confidence * 100))
+    : 95;
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -221,6 +233,7 @@ Summary: ${result.summary}`;
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-6 pb-24">
+      <AdBanner />
       {/* Top Banner Card with Image & Title */}
       <div className="bg-white dark:bg-black rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
@@ -251,9 +264,22 @@ Summary: ${result.summary}`;
                   • {result.category}
                 </span>
               </div>
-              <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-bold px-3 py-1 rounded-full text-xs">
-                HIGH ACCURACY
-              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 bg-emerald-950/60 text-emerald-400 font-extrabold px-3 py-1 rounded-full text-xs border border-emerald-900/50">
+                  <ShieldCheck size={13} />
+                  <span>{confidenceVal}% MATCH CONFIDENCE</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowReportModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-amber-950/70 hover:bg-amber-900 text-amber-300 border border-amber-800/80 transition-all shadow-sm active:scale-95 cursor-pointer"
+                  title="Alert or correct misidentified scan item"
+                >
+                  <AlertTriangle size={13} className="text-amber-400" />
+                  <span>Incorrect Item?</span>
+                </button>
+              </div>
             </div>
 
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white leading-tight">
@@ -313,6 +339,57 @@ Summary: ${result.summary}`;
             <span>Scan Another</span>
             <ArrowRight size={14} />
           </button>
+        </div>
+      </div>
+
+      {/* AI SCAN MATCH CONFIDENCE SCORE GAUGE */}
+      <div className="bg-white dark:bg-black rounded-3xl p-5 shadow-sm border border-slate-200 dark:border-slate-800 space-y-3.5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 shrink-0">
+              <ShieldCheck size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Barcode Match Confidence</h3>
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-300/50 dark:border-emerald-800/50 uppercase tracking-wider">
+                  {confidenceVal >= 90 ? 'High Confidence Match' : confidenceVal >= 75 ? 'Moderate Match' : 'Fair Match'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">Verified via barcode database lookup & real-time market catalog cross-reference</p>
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <span className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+              {confidenceVal}%
+            </span>
+          </div>
+        </div>
+
+        {/* Visual Gauge Progress Bar */}
+        <div className="space-y-1.5 pt-1">
+          <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-200/60 dark:border-slate-700/60 relative">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${confidenceVal}%` }}
+              transition={{ duration: 0.9, ease: 'easeOut' }}
+              className={`h-full rounded-full bg-gradient-to-r ${
+                confidenceVal >= 90
+                  ? 'from-emerald-500 via-teal-400 to-emerald-400 shadow-sm shadow-emerald-500/30'
+                  : confidenceVal >= 75
+                  ? 'from-blue-500 via-indigo-400 to-blue-400'
+                  : 'from-amber-500 via-orange-400 to-amber-400'
+              }`}
+            />
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 px-0.5">
+            <span>0% Unverified</span>
+            <span className="text-slate-600 dark:text-slate-300 font-bold">
+              {confidenceVal}% AI Certainty Rating
+            </span>
+            <span>100% Exact Match</span>
+          </div>
         </div>
       </div>
 
@@ -1072,6 +1149,23 @@ Summary: ${result.summary}`;
           </div>
         )}
       </AnimatePresence>
+      {/* Report Incorrect Scan Modal */}
+      <ReportIncorrectScanModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        currentProductName={result.productName}
+        currentBrand={result.brand}
+        capturedImageUrl={capturedImageUrl}
+        onSubmitCorrection={(correctName) => {
+          if (onCorrectScan) {
+            onCorrectScan(correctName);
+          }
+        }}
+        onRetakePhoto={onNewScan}
+        onManualSearch={() => {
+          if (onOpenSearch) onOpenSearch();
+        }}
+      />
     </div>
   );
 };

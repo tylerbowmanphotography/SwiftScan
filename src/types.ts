@@ -66,6 +66,8 @@ export interface SavedScanItem {
   thumbnailUrl?: string;
   scanResult: ProductScanResult;
   userNotes?: string;
+  scanType?: 'barcode' | 'camera' | 'search' | 'preset';
+  isBookmarked?: boolean;
 }
 
 export interface SampleProductPreset {

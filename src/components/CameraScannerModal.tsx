@@ -342,7 +342,33 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
             )}
           </div>
 
-          {/* Bottom Control Bar */}
+            {/* Quick Test Barcodes Bar */}
+            <div className="p-2 bg-zinc-950/90 border-t border-zinc-900 flex items-center gap-1.5 overflow-x-auto text-[11px] font-semibold text-zinc-300 scrollbar-none">
+              <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold shrink-0 pl-2">Test Barcodes:</span>
+              {[
+                { label: '👕 Uniqlo T-Shirt', code: '019283746501' },
+                { label: '🥤 Coke', code: '049000006346' },
+                { label: '🎧 Sony Headphones', code: '027242922112' },
+                { label: '👟 Nike AF1', code: '888462000000' },
+                { label: '🎮 Switch OLED', code: '045496881857' },
+                { label: '📚 C Book', code: '9780131103627' },
+              ].map((item) => (
+                <button
+                  key={item.code}
+                  type="button"
+                  onClick={() => {
+                    playChime();
+                    stopCamera();
+                    onScanBarcode(item.code);
+                  }}
+                  className="px-2.5 py-1 bg-zinc-900 hover:bg-pink-600 hover:text-white border border-zinc-800 rounded-lg shrink-0 transition-all active:scale-95 text-zinc-300"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Bottom Control Bar */}
           <div className="p-6 bg-zinc-950 flex items-center justify-between gap-4 border-t border-zinc-900">
             {/* Gallery Upload Button */}
             <button
