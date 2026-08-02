@@ -18,11 +18,11 @@ export function AdBanner() {
         Advertisement
       </div>
       
-      {/* Replace data-ad-client and data-ad-slot with your real AdSense IDs */}
+      {/* Replace data-ad-slot with your real AdSense slot ID when you create an ad unit */}
       <ins 
         className="adsbygoogle"
         style={{ display: 'block', width: '100%', minHeight: '100px' }}
-        data-ad-client="ca-pub-XXXXXXXXXXXXXXXX" 
+        data-ad-client="ca-pub-4192645455774507" 
         data-ad-slot="XXXXXXXXXX"
         data-ad-format="auto"
         data-full-width-responsive="true"
