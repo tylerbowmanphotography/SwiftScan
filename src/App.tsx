@@ -44,6 +44,16 @@ export default function App() {
   const [currentScanResult, setCurrentScanResult] = useState<ProductScanResult | null>(null);
   const [lastCapturedImage, setLastCapturedImage] = useState<string | undefined>(undefined);
 
+  const [isDarkMode, setIsDarkMode] = useState(true);
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
   const [savedItems, setSavedItems] = useState<SavedScanItem[]>(() => {
     try {
       const stored = localStorage.getItem('ps_saved_scans');
@@ -281,7 +291,7 @@ export default function App() {
 
   // Render the core app body with sleek obsidian aesthetic
   const renderAppContent = () => (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-pink-600 selection:text-white">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-pink-600 selection:text-white">
       {/* Header */}
       <Header
         onOpenScanner={() => setIsScannerOpen(true)}
@@ -289,6 +299,8 @@ export default function App() {
         onOpenSearch={() => setIsSearchOpen(true)}
         savedCount={savedItems.length}
         isIphoneFrameMode={isIphoneFrameMode}
+        isDarkMode={isDarkMode}
+        onToggleTheme={() => setIsDarkMode(!isDarkMode)}
         onToggleIphoneFrame={() => setIsIphoneFrameMode(!isIphoneFrameMode)}
       />
 
@@ -308,7 +320,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setErrorMessage(null)}
-              className="font-extrabold underline shrink-0 hover:text-white transition-colors"
+              className="font-extrabold underline shrink-0 hover:text-slate-900 dark:hover:text-white transition-colors"
             >
               Dismiss
             </button>
@@ -317,15 +329,15 @@ export default function App() {
 
         {/* Global Loading Overlay */}
         {isLoading && (
-          <div className="bg-slate-900/90 rounded-3xl p-10 border border-slate-800 text-center shadow-2xl space-y-5 backdrop-blur-xl">
+          <div className="bg-white dark:bg-slate-900/90 rounded-3xl p-10 border border-slate-200 dark:border-slate-800 text-center shadow-2xl space-y-5 backdrop-blur-xl">
             <div className="relative w-20 h-20 mx-auto">
               <div className="absolute inset-0 rounded-full border-4 border-pink-950/60" />
               <div className="absolute inset-0 rounded-full border-4 border-pink-500 border-t-transparent animate-spin" />
               <Sparkles className="absolute inset-0 m-auto text-pink-400 animate-pulse" size={28} />
             </div>
             <div className="space-y-1.5">
-              <h3 className="text-lg font-black text-white">Analyzing Product & Market Pricing...</h3>
-              <p className="text-xs font-medium text-slate-400 max-w-md mx-auto">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">Analyzing Product & Market Pricing...</h3>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 max-w-md mx-auto">
                 Gathering MSRP benchmarks, verified reviews consensus, and current store comparisons across Amazon, Best Buy, Walmart, and Target.
               </p>
             </div>
@@ -347,21 +359,21 @@ export default function App() {
           /* Landing Hero Studio / Scanner Hub */
           <div className="space-y-10">
             {/* HERO BANNER CARD */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-black rounded-3xl p-6 sm:p-10 border border-slate-800/90 shadow-2xl">
+            <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-black rounded-3xl p-6 sm:p-10 border border-slate-200 dark:border-slate-800/90 shadow-2xl">
               <div className="relative z-10 space-y-6 max-w-2xl">
                 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-pink-950/80 border border-pink-800/60 rounded-full text-pink-300 text-xs font-extrabold uppercase tracking-wider">
                   <Sparkles size={14} className="text-pink-400" />
                   <span>Real-Time Deal Intelligence Engine</span>
                 </div>
 
-                <h2 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight text-white">
+                <h2 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight text-slate-900 dark:text-white">
                   Know if it's a good price <br className="hidden sm:inline" />
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-rose-400 to-purple-400">
                     before you buy.
                   </span>
                 </h2>
 
-                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal">
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-normal">
                   Snap any barcode, product label, or store box. SwiftScan instantly verifies MSRP list prices, checks 6-month historical lows, aggregates buyer reviews, and compares live deals across major retailers.
                 </p>
 
@@ -370,7 +382,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setIsScannerOpen(true)}
-                    className="px-6 py-3.5 bg-gradient-to-r from-pink-600 via-rose-500 to-pink-500 hover:from-pink-500 hover:to-rose-600 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-xl shadow-pink-600/30 flex items-center gap-2.5 transition-all active:scale-95 border border-pink-400/20"
+                    className="px-6 py-3.5 bg-gradient-to-r from-pink-600 via-rose-500 to-pink-500 hover:from-pink-500 hover:to-rose-600 text-slate-900 dark:text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-xl shadow-pink-600/30 flex items-center gap-2.5 transition-all active:scale-95 border border-pink-400/20"
                   >
                     <Camera size={18} />
                     <span>Open Camera Vision Scanner</span>
@@ -379,7 +391,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setIsSearchOpen(true)}
-                    className="px-5 py-3.5 bg-slate-900/90 hover:bg-slate-800 text-slate-200 font-extrabold text-xs sm:text-sm rounded-2xl backdrop-blur-md border border-slate-800 flex items-center gap-2.5 transition-all"
+                    className="px-5 py-3.5 bg-white dark:bg-slate-900/90 hover:bg-slate-800 text-slate-800 dark:text-slate-200 font-extrabold text-xs sm:text-sm rounded-2xl backdrop-blur-md border border-slate-200 dark:border-slate-800 flex items-center gap-2.5 transition-all"
                   >
                     <Search size={18} className="text-pink-400" />
                     <span>Search Product by Name</span>
@@ -394,32 +406,32 @@ export default function App() {
 
             {/* TRUST HIGHLIGHTS BENTO GRID */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-5 bg-slate-900/80 rounded-2xl border border-slate-800 space-y-2 shadow-sm hover:border-slate-700 transition-colors">
+              <div className="p-5 bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
                 <div className="w-9 h-9 rounded-xl bg-pink-950/60 text-pink-400 flex items-center justify-center font-bold text-xs mb-1 border border-pink-800/50">
                   <TrendingDown size={18} />
                 </div>
-                <h3 className="font-extrabold text-xs text-white uppercase tracking-wider">Fair Price Gauge</h3>
-                <p className="text-[11px] text-slate-400 leading-normal">
+                <h3 className="font-extrabold text-xs text-slate-900 dark:text-white uppercase tracking-wider">Fair Price Gauge</h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
                   Classifies every product deal as Steal 🔥, Good Deal 👍, Fair ⚖️, or Overpriced ⏳ based on 6-month historical range data.
                 </p>
               </div>
 
-              <div className="p-5 bg-slate-900/80 rounded-2xl border border-slate-800 space-y-2 shadow-sm hover:border-slate-700 transition-colors">
+              <div className="p-5 bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
                 <div className="w-9 h-9 rounded-xl bg-amber-950/60 text-amber-400 flex items-center justify-center font-bold text-xs mb-1 border border-amber-800/50">
                   <ShieldCheck size={18} />
                 </div>
-                <h3 className="font-extrabold text-xs text-white uppercase tracking-wider">Verified Reviews</h3>
-                <p className="text-[11px] text-slate-400 leading-normal">
+                <h3 className="font-extrabold text-xs text-slate-900 dark:text-white uppercase tracking-wider">Verified Reviews</h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
                   Aggregates verified buyer pros, cons, sentiment scores, and technical specs into concise actionable insights.
                 </p>
               </div>
 
-              <div className="p-5 bg-slate-900/80 rounded-2xl border border-slate-800 space-y-2 shadow-sm hover:border-slate-700 transition-colors">
+              <div className="p-5 bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
                 <div className="w-9 h-9 rounded-xl bg-emerald-950/60 text-emerald-400 flex items-center justify-center font-bold text-xs mb-1 border border-emerald-800/50">
                   <Store size={18} />
                 </div>
-                <h3 className="font-extrabold text-xs text-white uppercase tracking-wider">Retail Cross-Check</h3>
-                <p className="text-[11px] text-slate-400 leading-normal">
+                <h3 className="font-extrabold text-xs text-slate-900 dark:text-white uppercase tracking-wider">Retail Cross-Check</h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
                   Compares live in-stock pricing across Amazon, Best Buy, Walmart, Target, Micro Center, B&H, and eBay.
                 </p>
               </div>
@@ -432,9 +444,9 @@ export default function App() {
                   <div>
                     <div className="flex items-center gap-2">
                       <History size={18} className="text-pink-400" />
-                      <h3 className="font-black text-lg text-white">Recent Past Scans</h3>
+                      <h3 className="font-black text-lg text-slate-900 dark:text-white">Recent Past Scans</h3>
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">Instant 1-click restore for your saved product scan history</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Instant 1-click restore for your saved product scan history</p>
                   </div>
 
                   <button
@@ -455,13 +467,13 @@ export default function App() {
                         setCurrentScanResult(item.scanResult);
                         setLastCapturedImage(item.thumbnailUrl);
                       }}
-                      className="group relative p-3.5 bg-slate-900/80 hover:bg-slate-900 rounded-2xl border border-slate-800 hover:border-pink-600/50 shadow-sm transition-all cursor-pointer flex gap-3.5 items-center overflow-hidden"
+                      className="group relative p-3.5 bg-white dark:bg-slate-900/80 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-pink-600/50 shadow-sm transition-all cursor-pointer flex gap-3.5 items-center overflow-hidden"
                     >
                       {item.thumbnailUrl ? (
                         <img
                           src={item.thumbnailUrl}
                           alt={item.scanResult.productName}
-                          className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-800 group-hover:scale-105 transition-transform"
+                          className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-200 dark:border-slate-800 group-hover:scale-105 transition-transform"
                         />
                       ) : (
                         <div className="w-16 h-16 rounded-xl bg-pink-950/60 text-pink-400 flex items-center justify-center shrink-0 border border-pink-900/50">
@@ -471,7 +483,7 @@ export default function App() {
 
                       <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-center justify-between gap-1">
-                          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block truncate">
+                          <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block truncate">
                             {item.scanResult.brand}
                           </span>
                           {item.isBookmarked && (
@@ -479,7 +491,7 @@ export default function App() {
                           )}
                         </div>
 
-                        <h4 className="text-xs font-extrabold text-white truncate group-hover:text-pink-400 transition-colors">
+                        <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate group-hover:text-pink-400 transition-colors">
                           {item.scanResult.productName}
                         </h4>
 
@@ -502,8 +514,8 @@ export default function App() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-black text-lg text-white">Featured Sample Product Presets</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Tap any test product below to evaluate SwiftScan price analysis instantly</p>
+                  <h3 className="font-black text-lg text-slate-900 dark:text-white">Featured Sample Product Presets</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Tap any test product below to evaluate SwiftScan price analysis instantly</p>
                 </div>
               </div>
 
@@ -512,29 +524,29 @@ export default function App() {
                   <div
                     key={preset.id}
                     onClick={() => handlePresetScan(preset)}
-                    className="group relative bg-slate-900/80 hover:bg-slate-900 rounded-2xl p-3.5 border border-slate-800 hover:border-pink-600/50 shadow-sm transition-all cursor-pointer flex flex-col justify-between overflow-hidden"
+                    className="group relative bg-white dark:bg-slate-900/80 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-2xl p-3.5 border border-slate-200 dark:border-slate-800 hover:border-pink-600/50 shadow-sm transition-all cursor-pointer flex flex-col justify-between overflow-hidden"
                   >
-                    <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-slate-950 mb-3 border border-slate-800/80">
+                    <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-950 mb-3 border border-slate-200 dark:border-slate-800/80">
                       <img
                         src={preset.imageUrl}
                         alt={preset.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
-                      <span className="absolute top-2 left-2 bg-slate-950/80 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md backdrop-blur-md border border-slate-800">
+                      <span className="absolute top-2 left-2 bg-slate-50 dark:bg-slate-950/80 text-slate-900 dark:text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md backdrop-blur-md border border-slate-200 dark:border-slate-800">
                         {preset.category}
                       </span>
                     </div>
 
                     <div className="space-y-1">
-                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                      <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                         {preset.brand}
                       </span>
-                      <h4 className="text-xs font-bold text-white line-clamp-2 leading-tight group-hover:text-pink-400 transition-colors">
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white line-clamp-2 leading-tight group-hover:text-pink-400 transition-colors">
                         {preset.name}
                       </h4>
                     </div>
 
-                    <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-extrabold text-pink-400">
+                    <div className="mt-3 pt-2.5 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[11px] font-extrabold text-pink-400">
                       <span>Analyze Deals</span>
                       <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
                     </div>
@@ -582,16 +594,16 @@ export default function App() {
   // If iPhone Frame mode is enabled, wrap inside a sleek iPhone device mockup
   if (isIphoneFrameMode) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center p-2 sm:p-6 select-none">
-        <div className="relative w-full max-w-[410px] h-[850px] max-h-[92vh] bg-slate-950 rounded-[55px] p-3 shadow-[0_0_100px_rgba(236,72,153,0.25)] border-4 border-slate-800 ring-1 ring-slate-700 overflow-hidden flex flex-col">
+      <div className="min-h-screen bg-slate-100 dark:bg-black flex flex-col items-center justify-center p-2 sm:p-6 select-none">
+        <div className="relative w-full max-w-[410px] h-[850px] max-h-[92vh] bg-slate-50 dark:bg-slate-950 rounded-[55px] p-3 shadow-[0_0_100px_rgba(236,72,153,0.25)] border-4 border-slate-200 dark:border-slate-800 ring-1 ring-slate-700 overflow-hidden flex flex-col">
           {/* iPhone Dynamic Island Header */}
-          <div className="absolute top-5 left-1/2 -translate-x-1/2 z-50 w-28 h-7 bg-black rounded-full flex items-center justify-between px-2.5 shadow-md">
-            <div className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-800" />
+          <div className="absolute top-5 left-1/2 -translate-x-1/2 z-50 w-28 h-7 bg-slate-100 dark:bg-black rounded-full flex items-center justify-between px-2.5 shadow-md">
+            <div className="w-2.5 h-2.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800" />
             <div className="w-2.5 h-2.5 rounded-full bg-pink-950 border border-pink-700/50" />
           </div>
 
           {/* iPhone Top Status Bar */}
-          <div className="relative z-40 px-7 pt-2 pb-1 flex items-center justify-between text-[11px] font-semibold text-slate-300">
+          <div className="relative z-40 px-7 pt-2 pb-1 flex items-center justify-between text-[11px] font-semibold text-slate-700 dark:text-slate-300">
             <span>9:41</span>
             <div className="flex items-center gap-1.5">
               <Wifi size={12} />
@@ -600,7 +612,7 @@ export default function App() {
           </div>
 
           {/* iPhone Inner Screen Frame */}
-          <div className="relative flex-1 bg-slate-950 rounded-[44px] overflow-y-auto scrollbar-none">
+          <div className="relative flex-1 bg-slate-50 dark:bg-slate-950 rounded-[44px] overflow-y-auto scrollbar-none">
             {renderAppContent()}
           </div>
 
