@@ -1,3 +1,4 @@
+import { getAffiliateUrl } from '../utils/affiliate';
 import React, { useState } from 'react';
 import {
   Star,
@@ -869,7 +870,7 @@ Summary: ${result.summary}`;
                     {formatCurrency(item.price)}
                   </span>
                   <a
-                    href={item.url ? `${item.url}${item.url.includes('?') ? '&' : '?'}tag=ais-affiliate-20` : `https://www.google.com/search?q=${encodeURIComponent(result.productName + ' ' + item.retailer)}+buy&tag=ais-affiliate-20`}
+                    href={getAffiliateUrl(item.url, item.retailer, result.productName)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3 py-1.5 rounded-xl bg-pink-600 text-white font-bold text-xs shadow-sm hover:bg-pink-700 transition-colors flex items-center gap-1"
