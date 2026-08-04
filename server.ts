@@ -274,9 +274,10 @@ Be realistic and accurate with real-world prices, real specifications, and authe
     // Attempt 1: primary model gemini-3.6-flash
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
+        model: "gemini-3.1-pro-preview",
         contents: { parts },
         config: {
+          thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
           responseMimeType: "application/json",
         },
       });
@@ -479,8 +480,11 @@ User Question: "${question}"
 Provide a direct, accurate, and structured answer to the user's question. Include key practical insights, compatibility details, warranty or build considerations, or real-world user advice if applicable. Keep the answer clear, professional, and well-formatted.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
+      model: "gemini-3.1-pro-preview",
       contents: promptText,
+      config: {
+        thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
+      },
     });
 
     return res.json({ success: true, answer: response.text || "No response generated." });
