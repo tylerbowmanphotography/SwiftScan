@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import {
   X,
+  AlertCircle,
+  Plus,
   Trash2,
   Search,
   Bookmark,
@@ -22,6 +24,8 @@ interface ScanHistoryDrawerProps {
   savedItems: SavedScanItem[];
   onSelectItem: (item: SavedScanItem) => void;
   onToggleBookmark: (id: string) => void;
+  onUpdateTags: (id: string, tags: string[]) => void;
+  onSetTargetPrice?: (id: string, price: number | undefined) => void;
   onDeleteItem: (id: string) => void;
   onClearAll: () => void;
 }
@@ -32,12 +36,22 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
   savedItems,
   onSelectItem,
   onToggleBookmark,
+  onUpdateTags,
+  onSetTargetPrice,
   onDeleteItem,
   onClearAll,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'bookmarks'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedScanType, setSelectedScanType] = useState<string>('all');
+  const [selectedTag, setSelectedTag] = useState<string>('all');
+  const [taggingItemId, setTaggingItemId] = useState<string | null>(null);
+  const [newTagValue, setNewTagValue] = useState('');
+  const [targetPriceItemId, setTargetPriceItemId] = useState<string | null>(null);
+  const [newTargetPrice, setNewTargetPrice] = useState<string>('');
+
+  // Extract all unique tags
+  const allTags = Array.from(new Set(savedItems.flatMap(item => item.tags || []))).sort();
 
   if (!isOpen) return null;
 
@@ -180,7 +194,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
               />
             </div>
 
-            {/* Type filter pills */}
+                        {/* Type filter pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] font-semibold text-slate-400 scrollbar-none pt-1">
               {[
                 { id: 'all', label: 'All Types' },
@@ -203,6 +217,37 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
                 </button>
               ))}
             </div>
+            
+            {/* Tag filter pills */}
+            {allTags.length > 0 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] font-semibold text-slate-400 scrollbar-none pt-1 pb-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectedTag('all')}
+                  className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold shrink-0 transition-all ${
+                    selectedTag === 'all'
+                      ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 hover:text-white'
+                  }`}
+                >
+                  All Folders
+                </button>
+                {allTags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setSelectedTag(tag)}
+                    className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold shrink-0 transition-all ${
+                      selectedTag === tag
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* History Item List */}
@@ -292,9 +337,116 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
                           </span>
                         </div>
                       </div>
+                      {/* Target price input */}
+                      {targetPriceItemId === item.id && (
+                        <div className="pt-2" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded-xl border border-emerald-200 dark:border-emerald-900/60">
+                            <AlertCircle size={14} className="text-emerald-600 dark:text-emerald-500" />
+                            <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-400">Target Price: $</span>
+                            <input
+                              type="number"
+                              autoFocus
+                              value={newTargetPrice}
+                              onChange={(e) => setNewTargetPrice(e.target.value)}
+                              placeholder="0.00"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const val = parseFloat(newTargetPrice);
+                                  onSetTargetPrice?.(item.id, isNaN(val) ? undefined : val);
+                                  setTargetPriceItemId(null);
+                                } else if (e.key === 'Escape') {
+                                  setTargetPriceItemId(null);
+                                }
+                              }}
+                              className="w-16 px-1.5 py-0.5 text-[10px] rounded border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const val = parseFloat(newTargetPrice);
+                                onSetTargetPrice?.(item.id, isNaN(val) ? undefined : val);
+                                setTargetPriceItemId(null);
+                              }}
+                              className="p-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/60 dark:hover:bg-emerald-800 rounded transition-colors"
+                            >
+                              Save
+                            </button>
+                            {item.targetPrice && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onSetTargetPrice?.(item.id, undefined);
+                                  setTargetPriceItemId(null);
+                                }}
+                                className="p-1 text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 rounded transition-colors ml-auto"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Tags display and input */}
+                      {((item.tags && item.tags.length > 0) || taggingItemId === item.id) && (
+                        <div className="pt-2 flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          {item.tags?.map(tag => (
+                            <span key={tag} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 text-[9px] font-bold">
+                              {tag}
+                              <button
+                                type="button"
+                                onClick={() => onUpdateTags(item.id, item.tags!.filter(t => t !== tag))}
+                                className="hover:text-purple-900 dark:hover:text-purple-100"
+                              >
+                                <X size={10} />
+                              </button>
+                            </span>
+                          ))}
+                          {taggingItemId === item.id && (
+                            <div className="flex items-center gap-1 ml-1">
+                              <input
+                                type="text"
+                                autoFocus
+                                value={newTagValue}
+                                onChange={(e) => setNewTagValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && newTagValue.trim()) {
+                                    e.preventDefault();
+                                    const currentTags = item.tags || [];
+                                    if (!currentTags.includes(newTagValue.trim())) {
+                                      onUpdateTags(item.id, [...currentTags, newTagValue.trim()]);
+                                    }
+                                    setNewTagValue('');
+                                  } else if (e.key === 'Escape') {
+                                    setTaggingItemId(null);
+                                  }
+                                }}
+                                placeholder="New tag..."
+                                className="px-1.5 py-0.5 text-[10px] w-20 rounded border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:border-purple-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (newTagValue.trim()) {
+                                    const currentTags = item.tags || [];
+                                    if (!currentTags.includes(newTagValue.trim())) {
+                                      onUpdateTags(item.id, [...currentTags, newTagValue.trim()]);
+                                    }
+                                    setNewTagValue('');
+                                  }
+                                  setTaggingItemId(null);
+                                }}
+                                className="p-0.5 text-purple-600 bg-purple-100 dark:bg-purple-900/60 hover:bg-purple-200 dark:hover:bg-purple-800 rounded transition-colors"
+                              >
+                                <Check size={12} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Action buttons (Bookmark & Delete) */}
+                    {/* Action buttons (Bookmark, Tag & Delete) */}
                     <div className="flex flex-col gap-1 shrink-0">
                       <button
                         type="button"
@@ -310,6 +462,48 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
                         title={item.isBookmarked ? 'Remove from bookmarks' : 'Bookmark this scan'}
                       >
                         <Bookmark size={14} className={item.isBookmarked ? 'fill-white' : ''} />
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (taggingItemId === item.id) {
+                            setTaggingItemId(null);
+                          } else {
+                            setTaggingItemId(item.id);
+                            setNewTagValue('');
+                          }
+                        }}
+                        className={`p-1.5 rounded-lg border transition-colors ${
+                          taggingItemId === item.id || (item.tags && item.tags.length > 0)
+                            ? 'bg-purple-600 text-white border-purple-600'
+                            : 'text-slate-400 hover:text-purple-500 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                        }`}
+                        title="Manage Folders / Tags"
+                      >
+                        <Tag size={14} className={taggingItemId === item.id || (item.tags && item.tags.length > 0) ? 'fill-white' : ''} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (targetPriceItemId === item.id) {
+                            setTargetPriceItemId(null);
+                          } else {
+                            setTargetPriceItemId(item.id);
+                            setNewTargetPrice(item.targetPrice ? item.targetPrice.toString() : '');
+                          }
+                        }}
+                        className={`p-1.5 rounded-lg border transition-colors ${
+                          targetPriceItemId === item.id || item.targetPrice
+                            ? 'bg-emerald-600 text-white border-emerald-600'
+                            : 'text-slate-400 hover:text-emerald-500 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                        }`}
+                        title="Set Target Price Alert"
+                      >
+                        <AlertCircle size={14} className={targetPriceItemId === item.id || item.targetPrice ? 'text-white' : ''} />
                       </button>
 
                       <button

@@ -275,6 +275,28 @@ export default function App() {
     );
   };
 
+  const handleUpdateTags = (id: string, tags: string[]) => {
+    setSavedItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, tags } : item
+      )
+    );
+  };
+
+  const handleSetTargetPrice = (id: string, targetPrice: number | undefined) => {
+    setSavedItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, targetPrice } : item
+      )
+    );
+  };
+
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
+  
+  const activeAlerts = savedItems.filter(item => 
+    item.targetPrice && item.scanResult.goodPrice <= item.targetPrice && !dismissedAlerts.has(item.id)
+  );
+
   const isCurrentSaved = currentScanResult
     ? savedItems.some((item) => item.scanResult.productName === currentScanResult.productName && item.isBookmarked)
     : false;
@@ -585,6 +607,8 @@ export default function App() {
           setLastCapturedImage(item.thumbnailUrl);
         }}
         onToggleBookmark={handleToggleBookmark}
+        onUpdateTags={handleUpdateTags}
+        onSetTargetPrice={handleSetTargetPrice}
         onDeleteItem={handleDeleteSavedItem}
         onClearAll={handleClearAllHistory}
       />

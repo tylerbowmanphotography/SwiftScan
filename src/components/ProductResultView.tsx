@@ -4,6 +4,7 @@ import {
   Star,
   CheckCircle2,
   XCircle,
+  Download,
   TrendingDown,
   ExternalLink,
   Bookmark,
@@ -239,7 +240,7 @@ Summary: ${result.summary}`;
       <div className="bg-white dark:bg-black rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
           {capturedImageUrl ? (
-            <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200 dark:border-slate-700 shadow-inner">
+            <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200 dark:border-slate-700 shadow-inner group">
               <img
                 src={capturedImageUrl}
                 alt={result.productName}
@@ -248,6 +249,21 @@ Summary: ${result.summary}`;
               <span className="absolute bottom-1.5 right-1.5 bg-black/70 text-[10px] font-bold text-white px-2 py-0.5 rounded-md backdrop-blur-sm">
                 PHOTO
               </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = capturedImageUrl;
+                  link.download = `scan-${result.productName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.jpg`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+                className="absolute top-1.5 left-1.5 bg-black/50 backdrop-blur-md text-white p-1.5 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-black/80 border border-white/10"
+                title="Save Photo to Device"
+              >
+                <Download size={14} />
+              </button>
             </div>
           ) : (
             <div className="w-28 h-28 rounded-2xl bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 flex items-center justify-center shrink-0 border border-pink-100 dark:border-pink-900/50">
