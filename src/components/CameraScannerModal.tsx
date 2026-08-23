@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Camera, RefreshCw, X, Image as ImageIcon, Zap, AlertCircle, Sparkles } from 'lucide-react';
+import { Camera, RefreshCw, X, Image as ImageIcon, Zap, AlertCircle, Sparkles, Search, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 
@@ -28,6 +28,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [isFlashOn, setIsFlashOn] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
+  const [snapshotPreview, setSnapshotPreview] = useState<string | null>(null);
 
   useEffect(() => {
     if (!readerRef.current) {
@@ -35,63 +36,87 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     }
   }, []);
 
+  // Handle camera start/stop on open/close
   useEffect(() => {
     if (isOpen) {
+      setSnapshotPreview(null);
       startCamera();
     } else {
       stopCamera();
+      setSnapshotPreview(null);
+      setCameraError(null);
     }
     return () => {
       stopCamera();
     };
   }, [isOpen, facingMode]);
 
+  // Keep video source synced with media stream
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch((err) => {
+        console.warn('Video autoPlay prevented:', err);
+      });
+    }
+  }, [stream]);
+
+  // Active continuous barcode detection
   useEffect(() => {
     let controls: any = null;
     let isCancelled = false;
 
-    if (stream && videoRef.current && readerRef.current && !isLoading) {
-      readerRef.current
-        .decodeFromVideoElement(videoRef.current, (result, error, ctrls) => {
-          if (isCancelled) return;
-          if (result) {
-            playChime();
-            if (ctrls) {
-              ctrls.stop();
-            } else if (controls) {
-              controls.stop();
+    if (stream && videoRef.current && readerRef.current && !isLoading && !snapshotPreview) {
+      try {
+        readerRef.current
+          .decodeFromVideoElement(videoRef.current, (result, error, ctrls) => {
+            if (isCancelled) return;
+            if (result) {
+              playChime();
+              if (ctrls) {
+                ctrls.stop();
+              } else if (controls) {
+                controls.stop();
+              }
+              // Capture a snapshot of what was scanned for thumbnail
+              captureSnapshotOnly();
+              onScanBarcode(result.getText());
             }
-            stopCamera();
-            onScanBarcode(result.getText());
-          }
-        })
-        .then((c) => {
-          if (isCancelled) {
-            c?.stop();
-          } else {
-            controls = c;
-          }
-        })
-        .catch((err) => {
-          if (!isCancelled) {
-            console.warn('ZXing decode error:', err);
-          }
-        });
+          })
+          .then((c) => {
+            if (isCancelled) {
+              c?.stop();
+            } else {
+              controls = c;
+            }
+          })
+          .catch((err) => {
+            if (!isCancelled) {
+              console.warn('ZXing decode warning:', err);
+            }
+          });
+      } catch (err) {
+        console.warn('Barcode scanner init error:', err);
+      }
 
       return () => {
         isCancelled = true;
         if (controls) {
-          controls.stop();
+          try {
+            controls.stop();
+          } catch (e) {
+            // ignore
+          }
         }
       };
     }
-  }, [stream, isLoading]);
+  }, [stream, isLoading, snapshotPreview]);
 
   const playChime = () => {
     try {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContext) {
-        const ctx = new AudioContext();
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
@@ -116,20 +141,33 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera access is not supported by your browser.');
+        throw new Error('Camera is not supported or permission is blocked in this browser.');
       }
 
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: facingMode },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      });
+      let mediaStream: MediaStream;
+      try {
+        // Preferred high-resolution mode
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+      } catch (e) {
+        // Fallback for devices with strict constraints
+        console.warn('Retrying camera with generic constraints...', e);
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      }
 
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        videoRef.current.play().catch((e) => console.warn('Video play error:', e));
       }
 
       // Check for torch track support
@@ -141,14 +179,20 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
         }
       }
     } catch (err: any) {
-      console.warn('Camera error:', err);
-      setCameraError('Unable to access camera. You can upload or select a photo instead.');
+      console.warn('Camera access error:', err);
+      setCameraError('Camera access unavailable. You can upload a photo or search by product name.');
     }
   };
 
   const stopCamera = () => {
     if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
+      stream.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (e) {
+          // ignore
+        }
+      });
       setStream(null);
     }
   };
@@ -173,25 +217,45 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
   };
 
-  const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+  const captureSnapshotOnly = () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current || document.createElement('canvas');
+    const width = video.videoWidth || 640;
+    const height = video.videoHeight || 480;
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (ctx && width > 0 && height > 0) {
+      ctx.drawImage(video, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      setSnapshotPreview(dataUrl);
+    }
+  };
 
-    // Play chime sound
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+
     playChime();
 
     const video = videoRef.current;
-    const canvas = canvasRef.current;
+    const canvas = canvasRef.current || document.createElement('canvas');
 
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    const width = video.videoWidth || 640;
+    const height = video.videoHeight || 480;
+    canvas.width = width;
+    canvas.height = height;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, 0, 0, width, height);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
-    stopCamera();
+    // Save snapshot in state so the user sees the frozen photo being scanned instead of a blank screen
+    setSnapshotPreview(dataUrl);
+
+    // Trigger parent capture handler
     onCaptureImage(dataUrl);
   };
 
@@ -203,7 +267,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     reader.onload = (event) => {
       const result = event.target?.result as string;
       if (result) {
-        stopCamera();
+        setSnapshotPreview(result);
         onCaptureImage(result);
       }
     };
@@ -237,7 +301,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              {hasTorch && (
+              {hasTorch && !cameraError && (
                 <button
                   type="button"
                   onClick={toggleFlash}
@@ -252,20 +316,22 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={toggleCameraFacing}
-                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 transition-colors"
-                title="Flip Camera"
-              >
-                <RefreshCw size={18} />
-              </button>
+              {!cameraError && (
+                <button
+                  type="button"
+                  onClick={toggleCameraFacing}
+                  className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 transition-colors"
+                  title="Flip Camera"
+                >
+                  <RefreshCw size={18} />
+                </button>
+              )}
 
               <button
                 type="button"
                 onClick={onClose}
                 className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 transition-colors"
-                title="Close"
+                title="Close Scanner"
               >
                 <X size={18} />
               </button>
@@ -274,61 +340,88 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
 
           {/* Camera Viewfinder Area */}
           <div className="relative flex-1 bg-zinc-900 overflow-hidden flex items-center justify-center">
-            {cameraError ? (
-              <div className="p-6 text-center max-w-xs">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center mx-auto mb-3">
-                  <AlertCircle size={24} />
+            {cameraError && !snapshotPreview ? (
+              <div className="p-6 text-center max-w-xs space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center mx-auto">
+                  <AlertCircle size={28} />
                 </div>
-                <p className="text-sm text-zinc-300 mb-4">{cameraError}</p>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-2.5 px-4 bg-pink-600 hover:bg-pink-500 text-white font-medium text-sm rounded-xl transition-all shadow-lg shadow-pink-600/30 flex items-center justify-center gap-2"
-                >
-                  <ImageIcon size={18} /> Choose Photo from Gallery
-                </button>
+                <div>
+                  <h4 className="font-bold text-base text-white">Camera Unavailable</h4>
+                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">{cameraError}</p>
+                </div>
+                <div className="space-y-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full py-3 px-4 bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-lg shadow-pink-600/30 flex items-center justify-center gap-2"
+                  >
+                    <ImageIcon size={18} />
+                    <span>Upload Photo from Gallery</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    className="w-full py-2.5 px-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-xs rounded-xl transition-all border border-zinc-700 flex items-center justify-center gap-2"
+                  >
+                    <RefreshCw size={14} />
+                    <span>Retry Camera Access</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <>
+                {/* Live Video Feed */}
                 <video
                   ref={videoRef}
                   autoPlay
                   playsInline
                   muted
-                  className="w-full h-full object-cover"
+                  className={`w-full h-full object-cover ${snapshotPreview ? 'opacity-0' : 'opacity-100'}`}
                 />
 
-                {/* Viewfinder Target Frame */}
-                <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-8">
-                  <div className="relative w-64 h-64 border-2 border-dashed border-pink-400/70 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(236,72,153,0.2)]">
-                    {/* Corner Reticles */}
-                    <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-pink-500 rounded-tl-xl" />
-                    <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-pink-500 rounded-tr-xl" />
-                    <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-pink-500 rounded-bl-xl" />
-                    <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-pink-500 rounded-br-xl" />
+                {/* Frozen Snapshot Preview during analysis */}
+                {snapshotPreview && (
+                  <img
+                    src={snapshotPreview}
+                    alt="Captured Scan Preview"
+                    className="absolute inset-0 w-full h-full object-cover z-10"
+                  />
+                )}
 
-                    {/* Animated Scanning Laser */}
-                    <motion.div
-                      animate={{ y: ['0%', '240%', '0%'] }}
-                      transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-                      className="w-full h-1 bg-gradient-to-r from-transparent via-pink-400 to-transparent shadow-[0_0_15px_#ec4899]"
-                    />
+                {/* Viewfinder Target Frame (when not analyzing) */}
+                {!isLoading && !snapshotPreview && (
+                  <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-8">
+                    <div className="relative w-64 h-64 border-2 border-dashed border-pink-400/70 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(236,72,153,0.2)]">
+                      {/* Corner Reticles */}
+                      <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-pink-500 rounded-tl-xl" />
+                      <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-pink-500 rounded-tr-xl" />
+                      <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-pink-500 rounded-bl-xl" />
+                      <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-pink-500 rounded-br-xl" />
+
+                      {/* Animated Scanning Laser */}
+                      <motion.div
+                        animate={{ y: ['0%', '240%', '0%'] }}
+                        transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                        className="w-full h-1 bg-gradient-to-r from-transparent via-pink-400 to-transparent shadow-[0_0_15px_#ec4899]"
+                      />
+                    </div>
+                    <p className="mt-4 text-xs font-medium text-zinc-300 bg-black/60 px-3.5 py-1.5 rounded-full backdrop-blur-md border border-white/10 shadow-lg">
+                      Snap photo or frame barcode
+                    </p>
                   </div>
-                  <p className="mt-4 text-xs font-medium text-zinc-300 bg-black/60 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10">
-                    Snap a photo or hold UPC barcode in frame
-                  </p>
-                </div>
+                )}
               </>
             )}
 
+            {/* Analysis In Progress Overlay */}
             {isLoading && (
-              <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center z-20 overflow-hidden">
+              <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center z-20 overflow-hidden px-6 text-center">
                 {/* Full-screen scanning laser animation during analysis */}
                 <motion.div
                   initial={{ y: '-10%' }}
                   animate={{ y: ['-10%', '110%', '-10%'] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-                  className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-pink-500 to-transparent shadow-[0_0_30px_10px_rgba(236,72,153,0.4)] z-10"
+                  transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                  className="absolute left-0 right-0 h-1.5 bg-gradient-to-r from-transparent via-pink-400 to-transparent shadow-[0_0_35px_12px_rgba(236,72,153,0.5)] z-10"
                 />
                 
                 <div className="relative w-16 h-16 mb-4 z-20">
@@ -336,50 +429,54 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                   <div className="absolute inset-0 rounded-full border-4 border-pink-500 border-t-transparent animate-spin" />
                   <Sparkles className="absolute inset-0 m-auto text-pink-400 animate-pulse" size={24} />
                 </div>
-                <p className="text-sm font-semibold text-white z-20">Analyzing Product & Prices...</p>
-                <p className="text-xs text-zinc-400 mt-1 z-20">Checking reviews and retailer prices</p>
+                <h4 className="text-base font-bold text-white z-20">Identifying Product with AI...</h4>
+                <p className="text-xs text-zinc-300 mt-1 z-20 max-w-xs">
+                  Analyzing model, calculating MSRP, aggregating buyer reviews & live retail prices
+                </p>
               </div>
             )}
           </div>
 
-            {/* Quick Test Barcodes Bar */}
-            <div className="p-2 bg-zinc-950/90 border-t border-zinc-900 flex items-center gap-1.5 overflow-x-auto text-[11px] font-semibold text-zinc-300 scrollbar-none">
-              <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold shrink-0 pl-2">Test Barcodes:</span>
-              {[
-                { label: '👕 Uniqlo T-Shirt', code: '019283746501' },
-                { label: '🥤 Coke', code: '049000006346' },
-                { label: '🎧 Sony Headphones', code: '027242922112' },
-                { label: '👟 Nike AF1', code: '888462000000' },
-                { label: '🎮 Switch OLED', code: '045496881857' },
-                { label: '📚 C Book', code: '9780131103627' },
-              ].map((item) => (
-                <button
-                  key={item.code}
-                  type="button"
-                  onClick={() => {
-                    playChime();
-                    stopCamera();
-                    onScanBarcode(item.code);
-                  }}
-                  className="px-2.5 py-1 bg-zinc-900 hover:bg-pink-600 hover:text-white border border-zinc-800 rounded-lg shrink-0 transition-all active:scale-95 text-zinc-300"
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+          {/* Quick Test Barcodes Bar */}
+          <div className="p-2.5 bg-zinc-950/90 border-t border-zinc-900 flex items-center gap-1.5 overflow-x-auto text-[11px] font-semibold text-zinc-300 scrollbar-none">
+            <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold shrink-0 pl-2">Test Barcodes:</span>
+            {[
+              { label: '👕 Uniqlo Tee', code: '019283746501' },
+              { label: '🥤 Coke Can', code: '049000006346' },
+              { label: '🎧 Sony XM5', code: '027242922112' },
+              { label: '👟 Nike AF1', code: '888462000000' },
+              { label: '🎮 Switch OLED', code: '045496881857' },
+              { label: '📚 C Book', code: '9780131103627' },
+            ].map((item) => (
+              <button
+                key={item.code}
+                type="button"
+                disabled={isLoading}
+                onClick={() => {
+                  playChime();
+                  onScanBarcode(item.code);
+                }}
+                className="px-2.5 py-1 bg-zinc-900 hover:bg-pink-600 hover:text-white border border-zinc-800 rounded-lg shrink-0 transition-all active:scale-95 text-zinc-300 disabled:opacity-50"
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
 
-            {/* Bottom Control Bar */}
-          <div className="p-6 bg-zinc-950 flex items-center justify-between gap-4 border-t border-zinc-900">
+          {/* Bottom Control Bar */}
+          <div className="p-5 bg-zinc-950 flex items-center justify-between gap-4 border-t border-zinc-900">
             {/* Gallery Upload Button */}
             <button
               type="button"
+              disabled={isLoading}
               onClick={() => fileInputRef.current?.click()}
-              className="flex flex-col items-center gap-1 text-zinc-400 hover:text-white transition-colors p-2"
+              className="flex flex-col items-center gap-1 text-zinc-400 hover:text-white transition-colors p-2 disabled:opacity-50"
+              title="Upload photo from device gallery"
             >
-              <div className="p-3 bg-zinc-900 rounded-2xl border border-zinc-800">
+              <div className="p-3 bg-zinc-900 rounded-2xl border border-zinc-800 hover:border-pink-600/50 transition-colors">
                 <ImageIcon size={20} />
               </div>
-              <span className="text-[11px]">Upload</span>
+              <span className="text-[11px] font-medium">Gallery</span>
             </button>
             <input
               ref={fileInputRef}
@@ -392,25 +489,28 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
             {/* Shutter Capture Button */}
             <button
               type="button"
-              disabled={isLoading || !!cameraError}
+              disabled={isLoading || (!!cameraError && !snapshotPreview)}
               onClick={capturePhoto}
-              className="relative p-1 bg-gradient-to-r from-pink-500 via-purple-500 to-pink-500 rounded-full shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+              className="relative p-1 bg-gradient-to-r from-pink-500 via-purple-500 to-pink-500 rounded-full shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-40"
+              title="Take Photo of Product"
             >
               <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center border-4 border-zinc-950">
                 <Camera size={26} className="text-zinc-900" />
               </div>
             </button>
 
-            {/* Camera Switch Button */}
+            {/* Camera Switch Button or Close */}
             <button
               type="button"
+              disabled={isLoading || !!cameraError}
               onClick={toggleCameraFacing}
-              className="flex flex-col items-center gap-1 text-zinc-400 hover:text-white transition-colors p-2"
+              className="flex flex-col items-center gap-1 text-zinc-400 hover:text-white transition-colors p-2 disabled:opacity-50"
+              title="Flip front/back camera"
             >
-              <div className="p-3 bg-zinc-900 rounded-2xl border border-zinc-800">
+              <div className="p-3 bg-zinc-900 rounded-2xl border border-zinc-800 hover:border-pink-600/50 transition-colors">
                 <RefreshCw size={20} />
               </div>
-              <span className="text-[11px]">Flip</span>
+              <span className="text-[11px] font-medium">Flip</span>
             </button>
           </div>
         </motion.div>

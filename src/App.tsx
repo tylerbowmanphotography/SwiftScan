@@ -120,6 +120,7 @@ export default function App() {
     } catch (err: any) {
       console.error('Scan error:', err);
       setErrorMessage(err?.message || 'Failed to scan image. Please verify connection and try again.');
+      setIsScannerOpen(false);
     } finally {
       setIsLoading(false);
     }
@@ -149,6 +150,8 @@ export default function App() {
     } catch (err: any) {
       console.error('Search error:', err);
       setErrorMessage(err?.message || 'Search failed. Please try again.');
+      setIsSearchOpen(false);
+      setIsScannerOpen(false);
     } finally {
       setIsLoading(false);
     }
@@ -177,6 +180,7 @@ export default function App() {
     } catch (err: any) {
       console.error('Barcode scan error:', err);
       setErrorMessage(err?.message || 'Barcode scan failed. Please try again.');
+      setIsScannerOpen(false);
     } finally {
       setIsLoading(false);
     }

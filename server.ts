@@ -271,22 +271,22 @@ Be realistic and accurate with real-world prices, real specifications, and authe
 
     let responseText = "";
     
-    // Attempt 1: primary model gemini-3.6-flash
+    // Attempt 1: primary model gemini-3.7-flash
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-3.7-flash",
         contents: { parts },
         config: {
-          thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
           responseMimeType: "application/json",
         },
       });
       responseText = response.text || "";
     } catch (primaryErr: any) {
-      // Attempt 2: lite model gemini-3.1-flash-lite
+      console.warn("Primary model error, trying fallback:", primaryErr?.message || primaryErr);
+      // Attempt 2: fallback model gemini-2.5-flash
       try {
         const fallbackResponse = await ai.models.generateContent({
-          model: "gemini-3.1-flash-lite",
+          model: "gemini-2.5-flash",
           contents: { parts },
           config: {
             responseMimeType: "application/json",
@@ -294,20 +294,9 @@ Be realistic and accurate with real-world prices, real specifications, and authe
         });
         responseText = fallbackResponse.text || "";
       } catch (liteErr: any) {
-        // Attempt 3: gemini-flash-latest
-        try {
-          const latestResponse = await ai.models.generateContent({
-            model: "gemini-flash-latest",
-            contents: { parts },
-            config: {
-              responseMimeType: "application/json",
-            },
-          });
-          responseText = latestResponse.text || "";
-        } catch (latestErr: any) {
-          // If all AI calls hit rate limit, fall through to smart product synthesizer
-          console.log("Gemini API rate limit reached. Using intelligent product price synthesizer.");
-        }
+        console.warn("Fallback model error:", liteErr?.message || liteErr);
+        // If all AI calls hit rate limit, fall through to smart product synthesizer
+        console.log("Gemini API rate limit or error reached. Using intelligent product price synthesizer.");
       }
     }
 
@@ -480,11 +469,8 @@ User Question: "${question}"
 Provide a direct, accurate, and structured answer to the user's question. Include key practical insights, compatibility details, warranty or build considerations, or real-world user advice if applicable. Keep the answer clear, professional, and well-formatted.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
+      model: "gemini-3.7-flash",
       contents: promptText,
-      config: {
-        thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
-      },
     });
 
     return res.json({ success: true, answer: response.text || "No response generated." });
@@ -510,7 +496,7 @@ app.post("/api/autocomplete", async (req, res) => {
     const ai = getGeminiClient();
     
     const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
+      model: "gemini-3.7-flash",
       contents: `You are a fast product search autocomplete engine. Given the partial query "${query}", provide a JSON array of 5 popular product search strings that start with or relate to this query. Focus on consumer electronics, home goods, or apparel. Only return a JSON array of strings. Example: ["sony headphones", "sony tv 4k", "sony camera"]`,
       config: {
         responseMimeType: "application/json",
@@ -553,7 +539,7 @@ app.post("/api/local-stores", async (req, res) => {
     const ai = getGeminiClient();
     
     const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
+      model: "gemini-3.7-flash",
       contents: `Find 3-5 major retail store chains near ${locString} that typically carry "${productName}". Provide store name, sample address, and why they carry it. Return JSON array with keys: name, address, reason.`,
       config: {
         responseMimeType: "application/json",
