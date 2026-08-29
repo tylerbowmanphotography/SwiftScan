@@ -30,6 +30,11 @@ import { ManualSearchModal } from './components/ManualSearchModal';
 
 import { ProductScanResult, SavedScanItem, SampleProductPreset } from './types';
 import { SAMPLE_PRESETS } from './data/samplePresets';
+import {
+  validateAndOptimizeImage,
+  validateSearchQuery,
+  validateBarcode,
+} from './utils/imageValidation';
 
 export default function App() {
   const [isIphoneFrameMode, setIsIphoneFrameMode] = useState(false);
@@ -97,63 +102,111 @@ export default function App() {
     });
   };
 
-  const handleScanImage = async (base64Data: string) => {
+  /**
+   * Robust Image Scanner with client-side pre-validation and explicit API error propagation
+   */
+  const handleScanImage = async (rawBase64Data: string) => {
     setIsLoading(true);
     setErrorMessage(null);
-    setLastCapturedImage(base64Data);
 
     try {
+      // 1. Client-Side Input Payload Validation & Optimization
+      const optimized = await validateAndOptimizeImage(rawBase64Data);
+      setLastCapturedImage(optimized.base64Data);
+
+      // 2. Send API Request
       const res = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64Data }),
+        body: JSON.stringify({
+          imageBase64: optimized.base64Data,
+          mimeType: optimized.mimeType,
+        }),
       });
 
+      // 3. Response Handling with Explicit Error Details
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Scan analysis failed (status ${res.status})`);
+        let serverErrorMsg = '';
+        try {
+          const errorJson = await res.json();
+          serverErrorMsg = errorJson.error || errorJson.message || '';
+        } catch {
+          const rawText = await res.text().catch(() => '');
+          serverErrorMsg = rawText.length < 200 ? rawText : '';
+        }
+
+        if (serverErrorMsg) {
+          throw new Error(`API Error (${res.status}): ${serverErrorMsg}`);
+        } else if (res.status === 404) {
+          throw new Error('API Error (404): The /api/scan endpoint was not found. Please verify the backend server is running.');
+        } else if (res.status === 413) {
+          throw new Error('API Error (413): The image payload is too large. Please select a smaller photo or lower resolution.');
+        } else {
+          throw new Error(`API Error (status ${res.status} ${res.statusText || 'Unknown'}): Failed to process product scan.`);
+        }
       }
 
       const data = await res.json();
       if (!data.success || !data.data) {
-        throw new Error(data.error || 'Failed to analyze product. Please try again.');
+        throw new Error(data.error || data.message || 'API returned an invalid scan payload without product data.');
       }
 
+      // 4. Success State
       setCurrentScanResult(data.data);
-      addToHistory(data.data, 'camera', base64Data);
+      addToHistory(data.data, 'camera', optimized.base64Data);
       setIsScannerOpen(false);
     } catch (err: any) {
       console.error('Scan error:', err);
-      const msg = typeof err?.message === 'string' && !err.message.includes('pattern')
-        ? err.message
-        : 'Could not process product photo. Please try snapping another photo or searching by name.';
-      setErrorMessage(msg);
+      const detailedMessage = err?.message || 'An unexpected error occurred while analyzing the product photo.';
+      setErrorMessage(detailedMessage);
       setIsScannerOpen(false);
     } finally {
       setIsLoading(false);
     }
   };
 
+  /**
+   * Search Text with pre-validation and explicit error propagation
+   */
   const handleSearchText = async (textQuery: string) => {
     setIsLoading(true);
     setErrorMessage(null);
     setLastCapturedImage(undefined);
 
     try {
+      // 1. Input Payload Validation
+      const cleanedQuery = validateSearchQuery(textQuery);
+
+      // 2. Send API Request
       const res = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ textQuery }),
+        body: JSON.stringify({ textQuery: cleanedQuery }),
       });
 
+      // 3. Response Handling
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Search failed (status ${res.status})`);
+        let serverErrorMsg = '';
+        try {
+          const errorJson = await res.json();
+          serverErrorMsg = errorJson.error || errorJson.message || '';
+        } catch {
+          const rawText = await res.text().catch(() => '');
+          serverErrorMsg = rawText.length < 200 ? rawText : '';
+        }
+
+        if (serverErrorMsg) {
+          throw new Error(`Search API Error (${res.status}): ${serverErrorMsg}`);
+        } else if (res.status === 404) {
+          throw new Error('Search API Error (404): The /api/scan endpoint was not found.');
+        } else {
+          throw new Error(`Search API Error (status ${res.status}): Failed to search product.`);
+        }
       }
 
       const data = await res.json();
       if (!data.success || !data.data) {
-        throw new Error(data.error || 'Failed to search product. Please try again.');
+        throw new Error(data.error || 'Failed to find product data for query.');
       }
 
       setCurrentScanResult(data.data);
@@ -162,10 +215,7 @@ export default function App() {
       setIsScannerOpen(false);
     } catch (err: any) {
       console.error('Search error:', err);
-      const msg = typeof err?.message === 'string' && !err.message.includes('pattern')
-        ? err.message
-        : 'Search query could not be completed. Please try another product name.';
-      setErrorMessage(msg);
+      setErrorMessage(err?.message || 'Search query could not be completed.');
       setIsSearchOpen(false);
       setIsScannerOpen(false);
     } finally {
@@ -173,26 +223,48 @@ export default function App() {
     }
   };
 
+  /**
+   * Barcode Scan with pre-validation and explicit error propagation
+   */
   const handleScanBarcode = async (barcode: string) => {
     setIsLoading(true);
     setErrorMessage(null);
     setLastCapturedImage(undefined);
 
     try {
+      // 1. Input Validation
+      const cleanCode = validateBarcode(barcode);
+
+      // 2. Send API Request
       const res = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ barcode: barcode.trim() }),
+        body: JSON.stringify({ barcode: cleanCode }),
       });
 
+      // 3. Response Handling
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Barcode lookup failed (status ${res.status})`);
+        let serverErrorMsg = '';
+        try {
+          const errorJson = await res.json();
+          serverErrorMsg = errorJson.error || errorJson.message || '';
+        } catch {
+          const rawText = await res.text().catch(() => '');
+          serverErrorMsg = rawText.length < 200 ? rawText : '';
+        }
+
+        if (serverErrorMsg) {
+          throw new Error(`Barcode Lookup Error (${res.status}): ${serverErrorMsg}`);
+        } else if (res.status === 404) {
+          throw new Error('Barcode Lookup Error (404): The /api/scan endpoint was not found.');
+        } else {
+          throw new Error(`Barcode Lookup Error (status ${res.status}): Could not lookup code ${cleanCode}`);
+        }
       }
 
       const data = await res.json();
       if (!data.success || !data.data) {
-        throw new Error(data.error || 'Failed to analyze barcode. Please try again.');
+        throw new Error(data.error || `Barcode ${cleanCode} could not be resolved.`);
       }
 
       setCurrentScanResult(data.data);
@@ -200,10 +272,7 @@ export default function App() {
       setIsScannerOpen(false);
     } catch (err: any) {
       console.error('Barcode scan error:', err);
-      const msg = typeof err?.message === 'string' && !err.message.includes('pattern')
-        ? err.message
-        : `Barcode ${barcode} could not be resolved. You can search by product name directly.`;
-      setErrorMessage(msg);
+      setErrorMessage(err?.message || `Barcode ${barcode} lookup failed.`);
       setIsScannerOpen(false);
     } finally {
       setIsLoading(false);
@@ -222,9 +291,14 @@ export default function App() {
         body: JSON.stringify({ textQuery: `${preset.brand} ${preset.name}` }),
       });
 
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({}));
+        throw new Error(errorJson.error || `Preset scan failed (status ${res.status})`);
+      }
+
       const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to analyze product.');
+      if (!data.success || !data.data) {
+        throw new Error(data.error || 'Failed to analyze product preset.');
       }
 
       setCurrentScanResult(data.data);
@@ -241,19 +315,26 @@ export default function App() {
     setErrorMessage(null);
 
     try {
+      const cleaned = validateSearchQuery(correctName);
+
       const res = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageBase64: lastCapturedImage,
-          correctionHint: correctName,
-          textQuery: correctName,
+          correctionHint: cleaned,
+          textQuery: cleaned,
         }),
       });
 
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({}));
+        throw new Error(errorJson.error || `Correction update failed (status ${res.status})`);
+      }
+
       const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to update product scan.');
+      if (!data.success || !data.data) {
+        throw new Error(data.error || 'Failed to update product scan with correction.');
       }
 
       setCurrentScanResult(data.data);

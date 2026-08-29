@@ -282,6 +282,14 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Reset input so user can pick the same file again if desired
+    e.target.value = '';
+
+    if (!file.type.startsWith('image/')) {
+      setCameraError('Please select a valid image file (JPG, PNG, WEBP).');
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const result = event.target?.result as string;
@@ -289,6 +297,9 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
         setSnapshotPreview(result);
         onCaptureImage(result);
       }
+    };
+    reader.onerror = () => {
+      setCameraError('Failed to read the selected image file. Please try again.');
     };
     reader.readAsDataURL(file);
   };

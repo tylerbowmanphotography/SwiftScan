@@ -9,8 +9,9 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-// Increase limit to handle base64 image uploads from camera
-app.use(express.json({ limit: "25mb" }));
+// Increase limits to handle high-resolution image uploads safely
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Initialize Gemini client lazily or when endpoint is called
 function getGeminiClient() {
@@ -29,7 +30,7 @@ function getGeminiClient() {
 }
 
 // Health check endpoint
-app.get("/api/health", (req, res) => {
+app.get(["/api/health", "/api/health/"], (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
@@ -76,7 +77,9 @@ async function resolveBarcodeToProduct(rawCode: string): Promise<{ name: string;
 
   // 2. Open Food Facts Lookup
   try {
-    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json`);
+    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json`, {
+      signal: AbortSignal.timeout(2000),
+    });
     const data = await res.json();
     if (data.status === 1 && data.product) {
       const p = data.product;
@@ -94,7 +97,9 @@ async function resolveBarcodeToProduct(rawCode: string): Promise<{ name: string;
   // 3. Open Library Lookup (for ISBNs)
   if (code.length === 10 || code.length === 13) {
     try {
-      const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${code}&format=json&jscmd=data`);
+      const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${code}&format=json&jscmd=data`, {
+        signal: AbortSignal.timeout(2000),
+      });
       const data = await res.json();
       const bookKey = `ISBN:${code}`;
       if (data[bookKey] && data[bookKey].title) {
@@ -109,7 +114,9 @@ async function resolveBarcodeToProduct(rawCode: string): Promise<{ name: string;
 
   // 4. UPCitemdb Trial Lookup
   try {
-    const res = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${code}`);
+    const res = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${code}`, {
+      signal: AbortSignal.timeout(2000),
+    });
     const data = await res.json();
     if (data.items && data.items.length > 0) {
       const item = data.items[0];
@@ -291,15 +298,55 @@ function extractAndParseJSON(text: string): any {
 }
 
 // Main Product Scan API endpoint
-app.post("/api/scan", async (req, res) => {
-  const { imageBase64, mimeType = "image/jpeg", textQuery, barcode, correctionHint } = req.body;
+app.post(["/api/scan", "/api/scan/"], async (req, res) => {
+  const { imageBase64, mimeType = "image/jpeg", textQuery, barcode, correctionHint } = req.body || {};
 
+  // Check if at least one input field is provided
   if (!imageBase64 && !textQuery && !barcode && !correctionHint) {
-    return res.status(400).json({ error: "Please provide either an image, barcode, search query, or correction." });
+    return res.status(400).json({
+      success: false,
+      error: "Input validation error: Please provide either a photo, barcode, product name, or correction hint.",
+    });
+  }
+
+  // Validate and sanitize image data if present
+  let cleanBase64 = "";
+  let detectedMimeType = mimeType || "image/jpeg";
+
+  if (imageBase64) {
+    if (typeof imageBase64 !== "string") {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid image format: Image payload must be a base64 encoded string.",
+      });
+    }
+    
+    // Extract MIME type and pure base64 characters
+    if (imageBase64.includes(",")) {
+      const parts = imageBase64.split(",");
+      const header = parts[0];
+      cleanBase64 = parts[1] || "";
+      const mimeMatch = header.match(/^data:([^;]+);base64/);
+      if (mimeMatch && mimeMatch[1]) {
+        detectedMimeType = mimeMatch[1];
+      }
+    } else {
+      cleanBase64 = imageBase64;
+    }
+
+    // Sanitize whitespace and linebreaks
+    cleanBase64 = cleanBase64.replace(/\s/g, "");
+
+    if (cleanBase64.length < 50) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid image data: The image data is too small or truncated.",
+      });
+    }
   }
 
   // Check if input is a barcode
-  const rawBarcode = barcode || (textQuery && /^\d{8,14}$/.test(textQuery.trim()) ? textQuery.trim() : null);
+  const rawBarcode = barcode ? String(barcode).trim() : (textQuery && /^\d{8,14}$/.test(textQuery.trim()) ? textQuery.trim() : null);
   let resolvedBarcodeProduct: { name: string; brand?: string; category?: string } | null = null;
 
   if (rawBarcode) {
@@ -400,10 +447,10 @@ Be realistic and accurate with real-world prices, real specifications, and authe
 
     let responseText = "";
     
-    // Attempt 1: primary model gemini-3.7-flash
+    // Attempt 1: primary model gemini-2.5-flash
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-3.7-flash",
+        model: "gemini-2.5-flash",
         contents: { parts },
         config: {
           responseMimeType: "application/json",
@@ -412,10 +459,10 @@ Be realistic and accurate with real-world prices, real specifications, and authe
       responseText = response.text || "";
     } catch (primaryErr: any) {
       console.warn("Primary model error, trying fallback:", primaryErr?.message || primaryErr);
-      // Attempt 2: fallback model gemini-2.5-flash
+      // Attempt 2: fallback model gemini-2.5-flash-lite
       try {
         const fallbackResponse = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-2.5-flash-lite",
           contents: { parts },
           config: {
             responseMimeType: "application/json",
@@ -581,11 +628,11 @@ function generateSmartFallbackProduct(queryInput: string, rawBarcode?: string | 
 }
 
 // Product Q&A Endpoint powered by Google Gemini
-app.post("/api/ask", async (req, res) => {
-  const { productName, brand, category, summary, question } = req.body;
+app.post(["/api/ask", "/api/ask/"], async (req, res) => {
+  const { productName, brand, category, summary, question } = req.body || {};
 
   if (!question || !productName) {
-    return res.status(400).json({ error: "Missing product information or question." });
+    return res.status(400).json({ success: false, error: "Missing product information or question." });
   }
 
   try {
@@ -602,7 +649,7 @@ User Question: "${question}"
 Provide a direct, accurate, and structured answer to the user's question. Include key practical insights, compatibility details, warranty or build considerations, or real-world user advice if applicable. Keep the answer clear, professional, and well-formatted.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+      model: "gemini-2.5-flash",
       contents: promptText,
     });
 
@@ -618,8 +665,8 @@ Provide a direct, accurate, and structured answer to the user's question. Includ
 });
 
 // Autocomplete / Search Suggestions (Low Latency)
-app.post("/api/autocomplete", async (req, res) => {
-  const { query } = req.body;
+app.post(["/api/autocomplete", "/api/autocomplete/"], async (req, res) => {
+  const { query } = req.body || {};
   
   if (!query || query.length < 2) {
     return res.json({ suggestions: [] });
@@ -629,7 +676,7 @@ app.post("/api/autocomplete", async (req, res) => {
     const ai = getGeminiClient();
     
     const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+      model: "gemini-2.5-flash",
       contents: `You are a fast product search autocomplete engine. Given the partial query "${query}", provide a JSON array of 5 popular product search strings that start with or relate to this query. Focus on consumer electronics, home goods, or apparel. Only return a JSON array of strings. Example: ["sony headphones", "sony tv 4k", "sony camera"]`,
       config: {
         responseMimeType: "application/json",
@@ -659,11 +706,11 @@ function generateFallbackSuggestions(query: string): string[] {
 }
 
 // Find Local Stores
-app.post("/api/local-stores", async (req, res) => {
-  const { productName, location } = req.body;
+app.post(["/api/local-stores", "/api/local-stores/"], async (req, res) => {
+  const { productName, location } = req.body || {};
   
   if (!productName) {
-    return res.status(400).json({ error: "Product name required" });
+    return res.status(400).json({ success: false, error: "Product name required" });
   }
 
   const locString = location || "nearby retail hubs";
@@ -672,7 +719,7 @@ app.post("/api/local-stores", async (req, res) => {
     const ai = getGeminiClient();
     
     const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+      model: "gemini-2.5-flash",
       contents: `Find 3-5 major retail store chains near ${locString} that typically carry "${productName}". Provide store name, sample address, and why they carry it. Return JSON array with keys: name, address, reason.`,
       config: {
         responseMimeType: "application/json",
@@ -700,6 +747,21 @@ function getDefaultLocalStores(productName: string) {
     { name: "Walmart Supercenter", address: "500 Commercial Rd", reason: "Competitive in-store pricing and everyday low rates." }
   ];
 }
+
+// Explicit 404 handler for unknown /api routes
+app.all("/api/*", (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: `API route not found: ${req.method} ${req.originalUrl || req.url}`,
+    availableEndpoints: [
+      "/api/health",
+      "/api/scan",
+      "/api/ask",
+      "/api/autocomplete",
+      "/api/local-stores",
+    ],
+  });
+});
 
 async function startServer() {
   // Vite middleware for development
