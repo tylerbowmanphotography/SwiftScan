@@ -109,8 +109,13 @@ export default function App() {
         body: JSON.stringify({ imageBase64: base64Data }),
       });
 
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Scan analysis failed (status ${res.status})`);
+      }
+
       const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (!data.success || !data.data) {
         throw new Error(data.error || 'Failed to analyze product. Please try again.');
       }
 
@@ -119,7 +124,10 @@ export default function App() {
       setIsScannerOpen(false);
     } catch (err: any) {
       console.error('Scan error:', err);
-      setErrorMessage(err?.message || 'Failed to scan image. Please verify connection and try again.');
+      const msg = typeof err?.message === 'string' && !err.message.includes('pattern')
+        ? err.message
+        : 'Could not process product photo. Please try snapping another photo or searching by name.';
+      setErrorMessage(msg);
       setIsScannerOpen(false);
     } finally {
       setIsLoading(false);
@@ -138,8 +146,13 @@ export default function App() {
         body: JSON.stringify({ textQuery }),
       });
 
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Search failed (status ${res.status})`);
+      }
+
       const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (!data.success || !data.data) {
         throw new Error(data.error || 'Failed to search product. Please try again.');
       }
 
@@ -149,7 +162,10 @@ export default function App() {
       setIsScannerOpen(false);
     } catch (err: any) {
       console.error('Search error:', err);
-      setErrorMessage(err?.message || 'Search failed. Please try again.');
+      const msg = typeof err?.message === 'string' && !err.message.includes('pattern')
+        ? err.message
+        : 'Search query could not be completed. Please try another product name.';
+      setErrorMessage(msg);
       setIsSearchOpen(false);
       setIsScannerOpen(false);
     } finally {
@@ -166,11 +182,16 @@ export default function App() {
       const res = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ barcode }),
+        body: JSON.stringify({ barcode: barcode.trim() }),
       });
 
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Barcode lookup failed (status ${res.status})`);
+      }
+
       const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (!data.success || !data.data) {
         throw new Error(data.error || 'Failed to analyze barcode. Please try again.');
       }
 
@@ -179,7 +200,10 @@ export default function App() {
       setIsScannerOpen(false);
     } catch (err: any) {
       console.error('Barcode scan error:', err);
-      setErrorMessage(err?.message || 'Barcode scan failed. Please try again.');
+      const msg = typeof err?.message === 'string' && !err.message.includes('pattern')
+        ? err.message
+        : `Barcode ${barcode} could not be resolved. You can search by product name directly.`;
+      setErrorMessage(msg);
       setIsScannerOpen(false);
     } finally {
       setIsLoading(false);

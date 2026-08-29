@@ -67,49 +67,55 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     let isCancelled = false;
 
     if (stream && videoRef.current && readerRef.current && !isLoading && !snapshotPreview) {
-      try {
-        readerRef.current
-          .decodeFromVideoElement(videoRef.current, (result, error, ctrls) => {
-            if (isCancelled) return;
-            if (result) {
-              playChime();
-              if (ctrls) {
-                ctrls.stop();
-              } else if (controls) {
-                controls.stop();
+      const vid = videoRef.current;
+      // Ensure video is ready before decoding
+      if (vid.readyState >= 2 || vid.videoWidth > 0) {
+        try {
+          readerRef.current
+            .decodeFromVideoElement(vid, (result, error, ctrls) => {
+              if (isCancelled) return;
+              if (result) {
+                playChime();
+                if (ctrls) {
+                  try { ctrls.stop(); } catch (e) { /* ignore */ }
+                } else if (controls) {
+                  try { controls.stop(); } catch (e) { /* ignore */ }
+                }
+                captureSnapshotOnly();
+                const text = result.getText ? result.getText() : String(result);
+                if (text && text.trim()) {
+                  onScanBarcode(text.trim());
+                }
               }
-              // Capture a snapshot of what was scanned for thumbnail
-              captureSnapshotOnly();
-              onScanBarcode(result.getText());
-            }
-          })
-          .then((c) => {
-            if (isCancelled) {
-              c?.stop();
-            } else {
-              controls = c;
-            }
-          })
-          .catch((err) => {
-            if (!isCancelled) {
-              console.warn('ZXing decode warning:', err);
-            }
-          });
-      } catch (err) {
-        console.warn('Barcode scanner init error:', err);
-      }
-
-      return () => {
-        isCancelled = true;
-        if (controls) {
-          try {
-            controls.stop();
-          } catch (e) {
-            // ignore
-          }
+            })
+            .then((c) => {
+              if (isCancelled) {
+                try { c?.stop(); } catch (e) {}
+              } else {
+                controls = c;
+              }
+            })
+            .catch((err) => {
+              if (!isCancelled) {
+                console.warn('ZXing decode warning:', err);
+              }
+            });
+        } catch (err) {
+          console.warn('Barcode scanner init error:', err);
         }
-      };
+      }
     }
+
+    return () => {
+      isCancelled = true;
+      if (controls) {
+        try {
+          controls.stop();
+        } catch (e) {
+          // ignore
+        }
+      }
+    };
   }, [stream, isLoading, snapshotPreview]);
 
   const playChime = () => {
@@ -117,21 +123,25 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
         const ctx = new AudioCtx();
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.05);
-        gain.gain.setValueAtTime(0, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.5);
+        const now = ctx.currentTime;
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.exponentialRampToValueAtTime(1760, now + 0.05);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.3, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc.start(now);
+        osc.stop(now + 0.4);
       }
     } catch (e) {
-      console.warn('Audio chime failed', e);
+      // Audio chime is purely decorative - silently ignore failures
     }
   };
 
@@ -146,12 +156,9 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
 
       let mediaStream: MediaStream;
       try {
-        // Preferred high-resolution mode
         mediaStream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: { ideal: facingMode },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+            facingMode: facingMode,
           },
           audio: false,
         });
@@ -171,12 +178,16 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
       }
 
       // Check for torch track support
-      const track = mediaStream.getVideoTracks()[0];
-      if (track) {
-        const capabilities: any = track.getCapabilities ? track.getCapabilities() : {};
-        if (capabilities.torch) {
-          setHasTorch(true);
+      try {
+        const track = mediaStream.getVideoTracks()[0];
+        if (track) {
+          const capabilities: any = track.getCapabilities ? track.getCapabilities() : {};
+          if (capabilities.torch) {
+            setHasTorch(true);
+          }
         }
+      } catch (e) {
+        // ignore capability check error
       }
     } catch (err: any) {
       console.warn('Camera access error:', err);
@@ -219,17 +230,21 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
 
   const captureSnapshotOnly = () => {
     if (!videoRef.current) return;
-    const video = videoRef.current;
-    const canvas = canvasRef.current || document.createElement('canvas');
-    const width = video.videoWidth || 640;
-    const height = video.videoHeight || 480;
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    if (ctx && width > 0 && height > 0) {
-      ctx.drawImage(video, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-      setSnapshotPreview(dataUrl);
+    try {
+      const video = videoRef.current;
+      const canvas = canvasRef.current || document.createElement('canvas');
+      const width = video.videoWidth > 0 ? video.videoWidth : 640;
+      const height = video.videoHeight > 0 ? video.videoHeight : 480;
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx && width > 0 && height > 0) {
+        ctx.drawImage(video, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setSnapshotPreview(dataUrl);
+      }
+    } catch (e) {
+      console.warn('Snapshot capture warning:', e);
     }
   };
 
@@ -238,25 +253,29 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
 
     playChime();
 
-    const video = videoRef.current;
-    const canvas = canvasRef.current || document.createElement('canvas');
+    try {
+      const video = videoRef.current;
+      const canvas = canvasRef.current || document.createElement('canvas');
 
-    const width = video.videoWidth || 640;
-    const height = video.videoHeight || 480;
-    canvas.width = width;
-    canvas.height = height;
+      const width = video.videoWidth > 0 ? video.videoWidth : 640;
+      const height = video.videoHeight > 0 ? video.videoHeight : 480;
+      canvas.width = width;
+      canvas.height = height;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-    ctx.drawImage(video, 0, 0, width, height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      ctx.drawImage(video, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
-    // Save snapshot in state so the user sees the frozen photo being scanned instead of a blank screen
-    setSnapshotPreview(dataUrl);
+      // Save snapshot in state so the user sees the frozen photo being scanned
+      setSnapshotPreview(dataUrl);
 
-    // Trigger parent capture handler
-    onCaptureImage(dataUrl);
+      // Trigger parent capture handler
+      onCaptureImage(dataUrl);
+    } catch (err: any) {
+      console.warn('Capture error:', err);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
