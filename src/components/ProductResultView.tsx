@@ -250,7 +250,6 @@ Summary: ${result.summary}`;
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-6 pb-24">
-      <AdBanner />
       {/* Top Banner Card with Image & Title */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
@@ -1115,6 +1114,9 @@ Summary: ${result.summary}`;
           </div>
         </div>
       )}
+
+      {/* Single optional AdSense banner (renders nothing unless configured). Never on the scan screen. */}
+      <AdBanner />
 
       {/* AFFILIATE DISCLOSURE */}
       <div className="text-center px-4 pt-2">

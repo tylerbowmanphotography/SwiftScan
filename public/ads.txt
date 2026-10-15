@@ -1,0 +1,10 @@
+# ads.txt for swiftscan.store
+#
+# PLACEHOLDER: the AdSense publisher ID is not known yet, so no authorized-seller line is
+# listed. Google AdSense shows the exact line to use once the AdSense account exists
+# (AdSense > Sites > ads.txt). Replace this comment block with that single line, which looks like:
+#
+#   google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0
+#
+# (the pub- number must match VITE_ADSENSE_CLIENT, without the "ca-" prefix).
+# Do not add a line with a made-up ID.
