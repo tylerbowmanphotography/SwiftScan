@@ -1,6 +1,8 @@
 {
+  "cleanUrls": true,
   "rewrites": [{ "source": "/api/(.*)", "destination": "/api" }],
   "functions": {
     "api/index.js": { "maxDuration": 60 }
-  }
+  },
+  "crons": [{ "path": "/api/cron/check-alerts", "schedule": "0 14 * * *" }]
 }

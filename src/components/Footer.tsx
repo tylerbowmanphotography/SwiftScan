@@ -18,6 +18,11 @@ export function Footer({ affiliate }: { affiliate: AffiliateConfig }) {
       <p className="text-[10px] text-slate-400/80">
         Prices shown are AI estimates, not live store prices. Always confirm the final price at the retailer.
       </p>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
+        <a href="/privacy" className="underline">Privacy Policy</a>
+        <span className="mx-2">·</span>
+        <a href="/terms" className="underline">Terms of Service</a>
+      </p>
     </footer>
   );
 }

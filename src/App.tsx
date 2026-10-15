@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Camera,
   Search,
@@ -29,6 +29,7 @@ import { ScanHistoryDrawer } from './components/ScanHistoryDrawer';
 import { ManualSearchModal } from './components/ManualSearchModal';
 import { UpgradeModal } from './components/UpgradeModal';
 import { Footer } from './components/Footer';
+import { AccountModal } from './components/AccountModal';
 
 import { ProductScanResult, SavedScanItem, SampleProductPreset, UnidentifiedBarcode } from './types';
 import { SAMPLE_PRESETS } from './data/samplePresets';
@@ -37,7 +38,10 @@ import {
   validateSearchQuery,
   validateBarcode,
 } from './utils/imageValidation';
-import { scanFetch, loadConfig, verifyCheckout, USAGE_EVENT, LIMIT_EVENT, AppConfig, Usage } from './utils/api';
+import {
+  scanFetch, loadConfig, verifyCheckout, fetchServerItems, pushServerItems, saveServerAlert, removeServerAlert,
+  USAGE_EVENT, LIMIT_EVENT, AppConfig, Usage, AccountUser,
+} from './utils/api';
 
 export default function App() {
   const [isIphoneFrameMode, setIsIphoneFrameMode] = useState(false);
@@ -60,14 +64,48 @@ export default function App() {
   const [usage, setUsage] = useState<Usage | null>(null);
   const [limitModal, setLimitModal] = useState<{ message?: string } | null>(null);
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
+  const [user, setUser] = useState<AccountUser | null>(null);
+  const [accountModal, setAccountModal] = useState<{ reason?: string } | null>(null);
+  const syncedEmail = useRef<string | null>(null);
+  // A target price set while signed out; saved as an email alert once the user signs in.
+  const pendingAlert = useRef<{ name: string; brand?: string; price: number } | null>(null);
+
+  const refreshConfig = async () => {
+    const cfg = await loadConfig();
+    if (cfg) {
+      setAppConfig(cfg);
+      setUsage(cfg.usage);
+      setUser(cfg.user || null);
+    }
+    return cfg;
+  };
+
+  // After signing in, finish a Stripe checkout that came back before the user was signed in.
+  const finishPendingCheckout = async () => {
+    const pending = sessionStorage.getItem('ss_pending_checkout');
+    if (!pending) return;
+    sessionStorage.removeItem('ss_pending_checkout');
+    const r = await verifyCheckout(pending);
+    setCheckoutNotice(r.ok ? 'SwiftScan Pro is active on your account. It follows you on any device you sign in on.' : (r.error || 'Could not confirm your payment.'));
+    if (r.ok) await refreshConfig();
+  };
+
+  const handleAuthChanged = async () => {
+    const cfg = await refreshConfig();
+    if (cfg?.user) {
+      setAccountModal(null);
+      const alert = pendingAlert.current;
+      pendingAlert.current = null;
+      if (alert) {
+        const r = await saveServerAlert(alert.name, alert.brand, alert.price);
+        if (!r.ok) setErrorMessage(r.error || 'Could not save the email alert.');
+      }
+      await finishPendingCheckout();
+    }
+  };
 
   useEffect(() => {
-    loadConfig().then((cfg) => {
-      if (cfg) {
-        setAppConfig(cfg);
-        setUsage(cfg.usage);
-      }
-    });
+    refreshConfig();
     const onUsage = (e: Event) => setUsage((e as CustomEvent).detail as Usage);
     const onLimit = (e: Event) => {
       setLimitModal({ message: (e as CustomEvent).detail?.message });
@@ -83,9 +121,15 @@ export default function App() {
       const sessionId = params.get('session_id');
       window.history.replaceState({}, '', window.location.pathname);
       if (checkout === 'success' && sessionId) {
-        verifyCheckout(sessionId).then((r) =>
-          setCheckoutNotice(r.ok ? 'Welcome to SwiftScan Pro! Scans are now unlimited on this device.' : (r.error || 'Could not confirm your payment.'))
-        );
+        verifyCheckout(sessionId).then((r) => {
+          if (r.signInRequired) {
+            sessionStorage.setItem('ss_pending_checkout', sessionId);
+            setAccountModal({ reason: 'Payment received. Sign in with your email to activate Pro on your account.' });
+            return;
+          }
+          setCheckoutNotice(r.ok ? 'Welcome to SwiftScan Pro! Scans are now unlimited.' : (r.error || 'Could not confirm your payment.'));
+          if (r.ok) refreshConfig();
+        });
       } else if (checkout === 'cancel') {
         setCheckoutNotice('Checkout canceled. You have not been charged.');
       }
@@ -120,6 +164,45 @@ export default function App() {
       console.warn('LocalStorage save failed:', e);
     }
   }, [savedItems]);
+
+  // Account sync: when signed in, saved items follow the account across devices.
+  useEffect(() => {
+    if (!user) {
+      syncedEmail.current = null;
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const server = await fetchServerItems();
+      if (cancelled || server === null) return;
+      const previous = localStorage.getItem('ps_synced_for');
+      setSavedItems((local) => {
+        const localThumbs = new Map(local.map((i) => [i.scanResult.productName, i.thumbnailUrl]));
+        const withThumbs = (list: SavedScanItem[]) => list.map((i) => ({ ...i, thumbnailUrl: i.thumbnailUrl || localThumbs.get(i.scanResult.productName) }));
+        if (previous === user.email) return server.length === 0 && local.length > 0 ? local : withThumbs(server);
+        if (previous && previous !== user.email) return withThumbs(server); // different account on this device
+        // first sync for this device: union by product, newest wins
+        const byName = new Map<string, SavedScanItem>();
+        for (const item of [...local, ...server]) {
+          const cur = byName.get(item.scanResult.productName);
+          if (!cur || (item.timestamp || 0) > (cur.timestamp || 0)) byName.set(item.scanResult.productName, item);
+        }
+        return withThumbs([...byName.values()].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)));
+      });
+      localStorage.setItem('ps_synced_for', user.email);
+      syncedEmail.current = user.email;
+    })();
+    return () => { cancelled = true; };
+  }, [user?.email]);
+
+  useEffect(() => {
+    if (!user || syncedEmail.current !== user.email) return;
+    const t = setTimeout(() => {
+      // Camera thumbnails are large data: URLs; only the item data syncs.
+      pushServerItems(savedItems.map(({ thumbnailUrl, ...rest }) => (thumbnailUrl && thumbnailUrl.startsWith('https://') && thumbnailUrl.length < 500 ? { ...rest, thumbnailUrl } : rest)));
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [savedItems, user?.email]);
 
   const addToHistory = (
     result: ProductScanResult,
@@ -439,6 +522,19 @@ export default function App() {
   };
 
   const handleSetTargetPrice = (id: string, targetPrice: number | undefined) => {
+    const target = savedItems.find((item) => item.id === id);
+    if (target) {
+      if (targetPrice === undefined) {
+        if (user) removeServerAlert(target.scanResult.productName);
+      } else if (user) {
+        saveServerAlert(target.scanResult.productName, target.scanResult.brand, targetPrice).then((r) => {
+          if (!r.ok) setErrorMessage(r.error || 'Could not save the email alert.');
+        });
+      } else if (appConfig?.accounts?.enabled) {
+        pendingAlert.current = { name: target.scanResult.productName, brand: target.scanResult.brand, price: targetPrice };
+        setAccountModal({ reason: 'Sign in with your email and we will email you when this item looks like it has dropped to your target price.' });
+      }
+    }
     setSavedItems((prev) =>
       prev.map((item) =>
         item.id === id ? { ...item, targetPrice } : item
@@ -479,6 +575,8 @@ export default function App() {
         isDarkMode={isDarkMode}
         onToggleTheme={() => setIsDarkMode(!isDarkMode)}
         onToggleIphoneFrame={() => setIsIphoneFrameMode(!isIphoneFrameMode)}
+        onOpenAccount={appConfig?.accounts?.enabled ? () => setAccountModal({}) : undefined}
+        signedIn={!!user}
       />
 
       {/* Main Container */}
@@ -810,6 +908,16 @@ export default function App() {
         message={limitModal?.message}
         paidEnabled={!!appConfig?.paid.enabled}
         onClose={() => { setLimitModal(null); setErrorMessage(null); }}
+        onSignInRequired={() => setAccountModal({ reason: 'Sign in with your email first so Pro follows you to any device.' })}
+      />
+
+      <AccountModal
+        open={!!accountModal}
+        user={user}
+        paidEnabled={!!appConfig?.paid.enabled}
+        reason={accountModal?.reason}
+        onClose={() => setAccountModal(null)}
+        onAuthChanged={handleAuthChanged}
       />
 
       {/* Camera Scanner Modal */}
@@ -843,6 +951,13 @@ export default function App() {
         onSetTargetPrice={handleSetTargetPrice}
         onDeleteItem={handleDeleteSavedItem}
         onClearAll={handleClearAllHistory}
+        alertsHint={
+          user
+            ? 'We check once a day and email you when the estimated price is at or below your target. Estimates, not live store prices.'
+            : appConfig?.accounts?.enabled
+              ? 'Sign in to get an email when the price drops. Without signing in, this only shows a banner while the app is open.'
+              : undefined
+        }
       />
     </div>
   );

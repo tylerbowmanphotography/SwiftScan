@@ -7,9 +7,11 @@ interface Props {
   message?: string;
   paidEnabled: boolean;
   onClose: () => void;
+  /** Called when checkout needs the user to sign in first. */
+  onSignInRequired?: () => void;
 }
 
-export function UpgradeModal({ open, message, paidEnabled, onClose }: Props) {
+export function UpgradeModal({ open, message, paidEnabled, onClose, onSignInRequired }: Props) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   if (!open) return null;
@@ -21,6 +23,8 @@ export function UpgradeModal({ open, message, paidEnabled, onClose }: Props) {
     setBusy(false);
     if (r.url) {
       window.location.href = r.url;
+    } else if (r.signInRequired && onSignInRequired) {
+      onSignInRequired();
     } else {
       setNote(r.error || 'Checkout is unavailable right now.');
     }
@@ -42,6 +46,7 @@ export function UpgradeModal({ open, message, paidEnabled, onClose }: Props) {
         </p>
         <ul className="text-xs text-slate-600 dark:text-slate-300 space-y-1 list-disc pl-5">
           <li>Unlimited scans and product searches, no daily limit</li>
+          <li>Works on every device you sign in on, plus more email price alerts</li>
         </ul>
         {paidEnabled ? (
           <button

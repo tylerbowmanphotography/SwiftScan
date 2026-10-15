@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, Search, Smartphone, Monitor, History, Sparkles, ScanBarcode, Moon, Sun } from 'lucide-react';
+import { Camera, Search, Smartphone, Monitor, History, Sparkles, ScanBarcode, Moon, Sun, UserRound } from 'lucide-react';
 
 interface HeaderProps {
   onOpenScanner: () => void;
@@ -10,6 +10,9 @@ interface HeaderProps {
   isDarkMode: boolean;
   onToggleTheme: () => void;
   onToggleIphoneFrame: () => void;
+  /** Shown only when accounts are available on the server. */
+  onOpenAccount?: () => void;
+  signedIn?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -21,6 +24,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleIphoneFrame,
   isDarkMode,
   onToggleTheme,
+  onOpenAccount,
+  signedIn,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-slate-50 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800/80 px-4 sm:px-8 py-3.5 shadow-2xl">
@@ -69,7 +74,20 @@ export const Header: React.FC<HeaderProps> = ({
             <span>{isIphoneFrameMode ? 'iPhone Frame' : 'Web View'}</span>
           </button>
 
-                    {/* Theme Toggle */}
+          {onOpenAccount && (
+            <button
+              type="button"
+              onClick={onOpenAccount}
+              className="relative p-2.5 bg-white dark:bg-slate-900/90 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl border border-slate-200 dark:border-slate-800 transition-all flex items-center justify-center"
+              title={signedIn ? 'Your account' : 'Sign in'}
+              aria-label={signedIn ? 'Your account' : 'Sign in'}
+            >
+              <UserRound size={18} className={signedIn ? 'text-pink-500' : ''} />
+              {signedIn && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-950" />}
+            </button>
+          )}
+
+          {/* Theme Toggle */}
           <button
             type="button"
             onClick={onToggleTheme}

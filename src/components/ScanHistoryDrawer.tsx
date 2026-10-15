@@ -28,6 +28,8 @@ interface ScanHistoryDrawerProps {
   onSetTargetPrice?: (id: string, price: number | undefined) => void;
   onDeleteItem: (id: string) => void;
   onClearAll: () => void;
+  /** Explains where target-price alerts go (email when signed in, otherwise on this device only). */
+  alertsHint?: string;
 }
 
 export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
@@ -40,6 +42,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
   onSetTargetPrice,
   onDeleteItem,
   onClearAll,
+  alertsHint,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'bookmarks'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -393,6 +396,9 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
                               </button>
                             )}
                           </div>
+                          {alertsHint && (
+                            <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{alertsHint}</p>
+                          )}
                         </div>
                       )}
 
