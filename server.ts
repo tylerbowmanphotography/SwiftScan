@@ -55,8 +55,17 @@ async function generateWithFallback(params: { contents: any; config?: any }): Pr
 }
 
 // Initialize Gemini client lazily or when endpoint is called
+const KEY_VAR_NAMES = ["GEMINI_API_KEY", "GoogleAIStudio", "GOOGLE_API_KEY"] as const;
+function resolveGeminiKey(): { key: string | undefined; source: string | undefined } {
+  for (const name of KEY_VAR_NAMES) {
+    const v = process.env[name];
+    if (v) return { key: v, source: name };
+  }
+  return { key: undefined, source: undefined };
+}
+
 function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = resolveGeminiKey().key;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY environment variable is not configured");
   }
@@ -74,7 +83,8 @@ function getGeminiClient() {
 app.get(["/api/health", "/api/health/"], (req, res) => {
   res.json({
     status: "ok",
-    geminiConfigured: !!process.env.GEMINI_API_KEY,
+    geminiConfigured: !!resolveGeminiKey().key,
+    geminiKeySource: resolveGeminiKey().source,
     models: GEMINI_MODELS,
     lastGeminiError: lastGeminiError || undefined,
     timestamp: new Date().toISOString(),
@@ -475,10 +485,10 @@ Be realistic and accurate with real-world prices, real specifications, and authe
   // so in that case report the real error instead.
   const hasRealName = !!(correctionHint || resolvedBarcodeProduct || (textQuery && !rawBarcode));
 
-  if (!process.env.GEMINI_API_KEY && !hasRealName) {
+  if (!resolveGeminiKey().key && !hasRealName) {
     return res.status(503).json({
       success: false,
-      error: "The scanning service is not configured: GEMINI_API_KEY is missing on the server.",
+      error: "The scanning service is not configured: no Gemini API key is set on the server (GEMINI_API_KEY).",
     });
   }
 
