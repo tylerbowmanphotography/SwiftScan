@@ -27,6 +27,8 @@ import { CameraScannerModal } from './components/CameraScannerModal';
 import { ProductResultView } from './components/ProductResultView';
 import { ScanHistoryDrawer } from './components/ScanHistoryDrawer';
 import { ManualSearchModal } from './components/ManualSearchModal';
+import { UpgradeModal } from './components/UpgradeModal';
+import { Footer } from './components/Footer';
 
 import { ProductScanResult, SavedScanItem, SampleProductPreset, UnidentifiedBarcode } from './types';
 import { SAMPLE_PRESETS } from './data/samplePresets';
@@ -35,6 +37,7 @@ import {
   validateSearchQuery,
   validateBarcode,
 } from './utils/imageValidation';
+import { scanFetch, loadConfig, verifyCheckout, USAGE_EVENT, LIMIT_EVENT, AppConfig, Usage } from './utils/api';
 
 export default function App() {
   const [isIphoneFrameMode, setIsIphoneFrameMode] = useState(false);
@@ -51,6 +54,47 @@ export default function App() {
   const [lastCapturedImage, setLastCapturedImage] = useState<string | undefined>(undefined);
 
   const [isDarkMode, setIsDarkMode] = useState(true);
+
+  // Monetization state: public config (affiliate IDs, paid tier flag) and free-scan usage
+  const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
+  const [usage, setUsage] = useState<Usage | null>(null);
+  const [limitModal, setLimitModal] = useState<{ message?: string } | null>(null);
+  const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadConfig().then((cfg) => {
+      if (cfg) {
+        setAppConfig(cfg);
+        setUsage(cfg.usage);
+      }
+    });
+    const onUsage = (e: Event) => setUsage((e as CustomEvent).detail as Usage);
+    const onLimit = (e: Event) => {
+      setLimitModal({ message: (e as CustomEvent).detail?.message });
+      setErrorMessage(null);
+    };
+    window.addEventListener(USAGE_EVENT, onUsage);
+    window.addEventListener(LIMIT_EVENT, onLimit);
+
+    // Returning from Stripe Checkout
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get('checkout');
+    if (checkout) {
+      const sessionId = params.get('session_id');
+      window.history.replaceState({}, '', window.location.pathname);
+      if (checkout === 'success' && sessionId) {
+        verifyCheckout(sessionId).then((r) =>
+          setCheckoutNotice(r.ok ? 'Welcome to SwiftScan Pro! Scans are now unlimited on this device.' : (r.error || 'Could not confirm your payment.'))
+        );
+      } else if (checkout === 'cancel') {
+        setCheckoutNotice('Checkout canceled. You have not been charged.');
+      }
+    }
+    return () => {
+      window.removeEventListener(USAGE_EVENT, onUsage);
+      window.removeEventListener(LIMIT_EVENT, onLimit);
+    };
+  }, []);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -116,14 +160,10 @@ export default function App() {
       setLastCapturedImage(optimized.base64Data);
 
       // 2. Send API Request
-      const res = await fetch('/api/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await scanFetch({
           imageBase64: optimized.base64Data,
           mimeType: optimized.mimeType,
-        }),
-      });
+        });
 
       // 3. Response Handling with Explicit Error Details
       if (!res.ok) {
@@ -180,11 +220,7 @@ export default function App() {
       const cleanedQuery = validateSearchQuery(textQuery);
 
       // 2. Send API Request
-      const res = await fetch('/api/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ textQuery: cleanedQuery }),
-      });
+      const res = await scanFetch({ textQuery: cleanedQuery });
 
       // 3. Response Handling
       if (!res.ok) {
@@ -240,11 +276,7 @@ export default function App() {
       const cleanCode = validateBarcode(barcode);
 
       // 2. Send API Request
-      const res = await fetch('/api/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ barcode: cleanCode }),
-      });
+      const res = await scanFetch({ barcode: cleanCode });
 
       // 3. Response Handling
       if (!res.ok) {
@@ -305,11 +337,7 @@ export default function App() {
     setLastCapturedImage(preset.imageUrl);
 
     try {
-      const res = await fetch('/api/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ textQuery: `${preset.brand} ${preset.name}` }),
-      });
+      const res = await scanFetch({ textQuery: `${preset.brand} ${preset.name}` });
 
       if (!res.ok) {
         const errorJson = await res.json().catch(() => ({}));
@@ -338,15 +366,11 @@ export default function App() {
     try {
       const cleaned = validateSearchQuery(correctName);
 
-      const res = await fetch('/api/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await scanFetch({
           imageBase64: lastCapturedImage,
           correctionHint: cleaned,
           textQuery: cleaned,
-        }),
-      });
+        });
 
       if (!res.ok) {
         const errorJson = await res.json().catch(() => ({}));
@@ -459,8 +483,32 @@ export default function App() {
 
       {/* Main Container */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-10">
+        {checkoutNotice && (
+          <div className="p-3 bg-emerald-950/80 border border-emerald-800 text-emerald-300 rounded-2xl text-xs font-bold flex items-center justify-between gap-3">
+            <span>{checkoutNotice}</span>
+            <button type="button" onClick={() => setCheckoutNotice(null)} className="underline shrink-0">Dismiss</button>
+          </div>
+        )}
+
+        {/* Free scan counter */}
+        {usage && !usage.isPro && usage.limit !== null && (
+          <div className="flex items-center justify-between gap-3 px-4 py-2 rounded-2xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+            <span>
+              {usage.exhausted
+                ? 'No free scans left today'
+                : `${usage.remaining} of ${usage.limit} free scans left today`}
+            </span>
+            <button
+              type="button"
+              onClick={() => setLimitModal({})}
+              className="text-pink-500 font-extrabold underline"
+            >
+              {appConfig?.paid.enabled ? 'Go Pro' : 'Pro coming soon'}
+            </button>
+          </div>
+        )}
         {/* Error Banner */}
-        {errorMessage && (
+        {errorMessage && !limitModal && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -754,6 +802,15 @@ export default function App() {
           </div>
         ) : null}
       </main>
+
+      <Footer affiliate={appConfig?.affiliate || {}} />
+
+      <UpgradeModal
+        open={!!limitModal}
+        message={limitModal?.message}
+        paidEnabled={!!appConfig?.paid.enabled}
+        onClose={() => { setLimitModal(null); setErrorMessage(null); }}
+      />
 
       {/* Camera Scanner Modal */}
       <CameraScannerModal

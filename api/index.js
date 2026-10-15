@@ -3,9 +3,241 @@ import express from "express";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+
+// server/monetization.ts
+import crypto from "crypto";
+var clean = (v) => (v || "").trim();
+function getAffiliateConfig() {
+  const prefix = (name) => {
+    const v = clean(process.env[name]);
+    return /^https:\/\//i.test(v) ? v : "";
+  };
+  return {
+    amazonTag: clean(process.env.AMAZON_ASSOCIATE_TAG),
+    ebayCampaignId: clean(process.env.EBAY_CAMPAIGN_ID),
+    // Impact-style deep-link prefixes, e.g. https://goto.walmart.com/c/123456/568844/9383
+    walmartLinkPrefix: prefix("WALMART_IMPACT_LINK_PREFIX"),
+    targetLinkPrefix: prefix("TARGET_IMPACT_LINK_PREFIX"),
+    bestBuyLinkPrefix: prefix("BESTBUY_IMPACT_LINK_PREFIX")
+  };
+}
+function getFreeScanLimit() {
+  const raw = clean(process.env.FREE_SCANS_PER_DAY).toLowerCase();
+  if (raw === "unlimited" || raw === "-1") return Infinity;
+  const n = Number(raw);
+  return raw !== "" && Number.isInteger(n) && n >= 0 ? n : 5;
+}
+function getIpLimit(limit) {
+  if (!Number.isFinite(limit)) return Infinity;
+  const raw = Number(clean(process.env.FREE_SCANS_PER_IP_PER_DAY));
+  return Number.isInteger(raw) && raw >= limit ? raw : Math.max(limit * 3, limit);
+}
+var stripeConfig = () => ({
+  secretKey: clean(process.env.STRIPE_SECRET_KEY),
+  priceId: clean(process.env.STRIPE_PRICE_ID),
+  webhookSecret: clean(process.env.STRIPE_WEBHOOK_SECRET)
+});
+var isStripeEnabled = () => {
+  const c = stripeConfig();
+  return !!(c.secretKey && c.priceId);
+};
+function secret() {
+  const explicit = clean(process.env.QUOTA_COOKIE_SECRET);
+  if (explicit) return explicit;
+  const base = clean(process.env.STRIPE_SECRET_KEY) || clean(process.env.GEMINI_API_KEY) || clean(process.env.GoogleAIStudio) || clean(process.env.GOOGLE_API_KEY) || "swiftscan-dev-secret";
+  return crypto.createHash("sha256").update("swiftscan-quota:" + base).digest("hex");
+}
+var sign = (payload) => crypto.createHmac("sha256", secret()).update(payload).digest("hex").slice(0, 32);
+function readCookie(req, name) {
+  const header = req.headers.cookie;
+  if (!header) return void 0;
+  for (const part of header.split(";")) {
+    const idx = part.indexOf("=");
+    if (idx > 0 && part.slice(0, idx).trim() === name) return decodeURIComponent(part.slice(idx + 1).trim());
+  }
+  return void 0;
+}
+function setCookie(req, res, name, value, maxAgeSec) {
+  const secure = (req.headers["x-forwarded-proto"] || req.protocol) === "https";
+  const cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAgeSec}; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
+  const prev = res.getHeader("Set-Cookie");
+  res.setHeader("Set-Cookie", prev ? [].concat(prev, cookie) : cookie);
+}
+var QUOTA_TZ = clean(process.env.QUOTA_TIMEZONE) || "America/Chicago";
+function today() {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: QUOTA_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(/* @__PURE__ */ new Date());
+  } catch {
+    return (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  }
+}
+var ipCounts = /* @__PURE__ */ new Map();
+function clientIp(req) {
+  const xff = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return clean(String(req.headers["x-real-ip"] || "")) || xff || req.socket?.remoteAddress || "unknown";
+}
+var ipKey = (req) => crypto.createHash("sha256").update(clientIp(req)).digest("hex").slice(0, 24);
+function readDeviceCount(req, day) {
+  const raw = readCookie(req, "ss_q");
+  if (!raw) return 0;
+  const [d, c, sig] = raw.split(".");
+  if (d !== day || !/^\d+$/.test(c || "") || !sig || sig !== sign(`${d}.${c}`)) return 0;
+  return Number(c);
+}
+function readIpCount(req, day) {
+  const e = ipCounts.get(ipKey(req));
+  return e && e.day === day ? e.count : 0;
+}
+function isPro(req) {
+  const raw = readCookie(req, "ss_pro");
+  if (!raw) return false;
+  const [exp, sig] = raw.split(".");
+  return !!sig && /^\d+$/.test(exp || "") && Number(exp) > Date.now() && sig === sign(`pro.${exp}`);
+}
+function getUsage(req) {
+  const limit = getFreeScanLimit();
+  const day = today();
+  const pro = isPro(req);
+  const used = Math.max(readDeviceCount(req, day), 0);
+  const ipUsed = readIpCount(req, day);
+  const exhausted = !pro && (used >= limit || ipUsed >= getIpLimit(limit));
+  return {
+    isPro: pro,
+    limit: Number.isFinite(limit) ? limit : null,
+    used,
+    remaining: pro || !Number.isFinite(limit) ? null : exhausted ? 0 : Math.max(limit - used, 0),
+    exhausted
+  };
+}
+function recordScan(req, res) {
+  const day = today();
+  const next = readDeviceCount(req, day) + 1;
+  setCookie(req, res, "ss_q", `${day}.${next}.${sign(`${day}.${next}`)}`, 60 * 60 * 36);
+  const key = ipKey(req);
+  const e = ipCounts.get(key);
+  ipCounts.set(key, { day, count: (e && e.day === day ? e.count : 0) + 1 });
+  if (ipCounts.size > 2e4) {
+    for (const [k, v] of ipCounts) if (v.day !== day) ipCounts.delete(k);
+    if (ipCounts.size > 2e4) ipCounts.clear();
+  }
+}
+function scanQuota(req, res, next) {
+  const before = getUsage(req);
+  if (before.exhausted) {
+    return res.status(429).json({
+      success: false,
+      code: "FREE_LIMIT_REACHED",
+      error: `You've used your ${before.limit} free scans for today. Upgrade to SwiftScan Pro for unlimited scans, or come back tomorrow.`,
+      usage: before,
+      upgrade: { available: isStripeEnabled() }
+    });
+  }
+  const originalJson = res.json.bind(res);
+  res.json = (body) => {
+    if (body && typeof body === "object" && res.statusCode === 200 && body.success === true && !before.isPro) {
+      recordScan(req, res);
+      const day = today();
+      const used = readDeviceCount(req, day) + 1;
+      const limit = getFreeScanLimit();
+      body = { ...body, usage: { ...before, used, remaining: Number.isFinite(limit) ? Math.max(limit - used, 0) : null, exhausted: used >= limit } };
+    } else if (body && typeof body === "object" && !("usage" in body)) {
+      body = { ...body, usage: before };
+    }
+    return originalJson(body);
+  };
+  next();
+}
+function appOrigin(req) {
+  const configured = clean(process.env.APP_URL);
+  if (/^https?:\/\//i.test(configured)) return configured.replace(/\/+$/, "");
+  const proto = String(req.headers["x-forwarded-proto"] || req.protocol).split(",")[0];
+  return `${proto}://${req.headers["x-forwarded-host"] || req.headers.host}`;
+}
+async function getStripe() {
+  const { default: Stripe } = await import("stripe");
+  return new Stripe(stripeConfig().secretKey);
+}
+function registerMonetizationRoutes(app2) {
+  app2.get(["/api/config", "/api/config/"], (req, res) => {
+    const a = getAffiliateConfig();
+    res.json({
+      affiliate: {
+        amazonTag: a.amazonTag || null,
+        ebayCampaignId: a.ebayCampaignId || null,
+        walmartLinkPrefix: a.walmartLinkPrefix || null,
+        targetLinkPrefix: a.targetLinkPrefix || null,
+        bestBuyLinkPrefix: a.bestBuyLinkPrefix || null
+      },
+      paid: { enabled: isStripeEnabled(), comingSoon: !isStripeEnabled() },
+      usage: getUsage(req)
+    });
+  });
+  app2.post(["/api/checkout", "/api/checkout/"], async (req, res) => {
+    if (!isStripeEnabled()) {
+      return res.status(503).json({
+        success: false,
+        enabled: false,
+        comingSoon: true,
+        error: "SwiftScan Pro is coming soon. Paid plans aren't open yet."
+      });
+    }
+    try {
+      const stripe = await getStripe();
+      const origin = appOrigin(req);
+      const session = await stripe.checkout.sessions.create({
+        mode: "subscription",
+        line_items: [{ price: stripeConfig().priceId, quantity: 1 }],
+        success_url: `${origin}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/?checkout=cancel`,
+        allow_promotion_codes: true
+      });
+      return res.json({ success: true, url: session.url });
+    } catch (err) {
+      console.warn("Checkout error:", err?.message || err);
+      return res.status(502).json({ success: false, error: "Couldn't start checkout right now. Please try again." });
+    }
+  });
+  app2.get(["/api/checkout/verify", "/api/checkout/verify/"], async (req, res) => {
+    const sessionId = String(req.query.session_id || "");
+    if (!isStripeEnabled()) return res.status(503).json({ success: false, enabled: false, comingSoon: true });
+    if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId)) return res.status(400).json({ success: false, error: "Invalid session." });
+    try {
+      const stripe = await getStripe();
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      const ok = session.status === "complete" && (session.payment_status === "paid" || session.payment_status === "no_payment_required");
+      if (!ok) return res.status(402).json({ success: false, error: "Payment isn't complete yet." });
+      const exp = Date.now() + 1e3 * 60 * 60 * 24 * 32;
+      setCookie(req, res, "ss_pro", `${exp}.${sign(`pro.${exp}`)}`, 60 * 60 * 24 * 32);
+      return res.json({ success: true, usage: { ...getUsage(req), isPro: true, exhausted: false, remaining: null } });
+    } catch (err) {
+      console.warn("Checkout verify error:", err?.message || err);
+      return res.status(502).json({ success: false, error: "Couldn't confirm the payment. Please contact support." });
+    }
+  });
+  app2.post(["/api/stripe-webhook", "/api/stripe-webhook/"], async (req, res) => {
+    const { secretKey, webhookSecret } = stripeConfig();
+    if (!secretKey || !webhookSecret) {
+      return res.status(503).json({ received: false, enabled: false, comingSoon: true });
+    }
+    const raw = req.rawBody;
+    const sig = req.headers["stripe-signature"];
+    if (!raw || !sig) return res.status(400).json({ received: false, error: "Missing signature or body." });
+    try {
+      const stripe = await getStripe();
+      const event = stripe.webhooks.constructEvent(raw, String(sig), webhookSecret);
+      console.log(`Stripe webhook received: ${event.type} (${event.id}) - not persisted (stub)`);
+      return res.json({ received: true });
+    } catch (err) {
+      console.warn("Stripe webhook signature failure:", err?.message || err);
+      return res.status(400).json({ received: false, error: "Invalid signature." });
+    }
+  });
+}
+
+// server.ts
 dotenv.config();
 var app = express();
-var PORT = 3e3;
+var PORT = Number(process.env.PORT) || 3e3;
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
@@ -16,7 +248,13 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json({ limit: "50mb" }));
+app.use(express.json({
+  limit: "50mb",
+  // Stripe webhook signature verification needs the exact raw bytes.
+  verify: (req, _res, buf) => {
+    if (typeof req.originalUrl === "string" && req.originalUrl.startsWith("/api/stripe-webhook")) req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 var GEMINI_MODELS = [
   process.env.GEMINI_MODEL,
@@ -64,6 +302,7 @@ function getGeminiClient() {
     }
   });
 }
+registerMonetizationRoutes(app);
 app.get(["/api/health", "/api/health/"], (req, res) => {
   res.json({
     status: "ok",
@@ -294,7 +533,7 @@ function extractAndParseJSON(text) {
     throw new Error("Could not parse JSON from model response: " + text.slice(0, 100));
   }
 }
-app.post(["/api/scan", "/api/scan/"], async (req, res) => {
+app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {
   const { imageBase64, mimeType = "image/jpeg", textQuery, barcode, correctionHint } = req.body || {};
   if (!imageBase64 && !textQuery && !barcode && !correctionHint) {
     return res.status(400).json({
