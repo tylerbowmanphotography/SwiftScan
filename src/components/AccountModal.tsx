@@ -75,12 +75,12 @@ export function AccountModal({ open, user, paidEnabled, reason, onClose, onAuthC
   };
 
   const inputCls = 'w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white outline-none focus:border-pink-500';
-  const btnCls = 'w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-rose-500 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-60';
+  const btnCls = 'w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-pink-700 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-60';
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white dark:bg-black rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+      <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
         <button type="button" onClick={onClose} aria-label="Close" className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">
           <X size={16} />
         </button>
@@ -159,7 +159,7 @@ export function AccountModal({ open, user, paidEnabled, reason, onClose, onAuthC
                 </button>
               </>
             )}
-            <p className="text-[10px] text-slate-400 text-center">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center">
               By signing in you agree to the <a className="underline" href="/terms">Terms</a> and <a className="underline" href="/privacy">Privacy Policy</a>.
             </p>
           </>

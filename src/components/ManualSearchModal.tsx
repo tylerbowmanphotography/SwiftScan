@@ -72,7 +72,7 @@ export const ManualSearchModal: React.FC<ManualSearchModalProps> = ({
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
-          className="w-full max-w-lg bg-white dark:bg-black rounded-3xl p-6 shadow-xl border border-slate-200 dark:border-slate-800 space-y-5"
+          className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-xl border border-slate-200 dark:border-slate-800 space-y-5"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -81,13 +81,13 @@ export const ManualSearchModal: React.FC<ManualSearchModalProps> = ({
               </div>
               <div>
                 <h2 className="font-bold text-lg text-slate-900 dark:text-white">Product Search</h2>
-                <p className="text-xs text-slate-400 font-medium">Search by brand, name, or model</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Search by brand, name, or model</p>
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 transition-colors"
+              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
             >
               <X size={18} />
             </button>
@@ -139,7 +139,7 @@ export const ManualSearchModal: React.FC<ManualSearchModalProps> = ({
             
             {/* LOADING INDICATOR FOR AUTOCOMPLETE */}
             {isTyping && query.trim().length >= 2 && suggestions.length === 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 px-4 py-3 text-xs text-slate-400 flex items-center gap-2 font-medium">
+                <div className="absolute top-full left-0 right-0 mt-2 px-4 py-3 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 font-medium">
                   <Loader2 size={12} className="animate-spin" />
                   Generating suggestions...
                 </div>
@@ -147,7 +147,7 @@ export const ManualSearchModal: React.FC<ManualSearchModalProps> = ({
           </form>
 
           <div className="space-y-2 pt-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
               {query.trim() ? 'Related Popular' : 'Popular Searches'}
             </span>
             <div className="flex flex-wrap gap-2">

@@ -1,9 +1,21 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>SwiftScan</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>SwiftScan: Snap it. Know what it's worth.</title>
+    <meta name="description" content="Scan a barcode or product with your phone and get an AI price estimate, a deal rating and retailer links before you buy." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Apply the saved (or system) theme before first paint to avoid a flash -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('ss_theme');
+          var dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-WF50NC68BJ"></script>
     <script>
@@ -17,7 +29,7 @@
     <!-- Google AdSense Script -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4192645455774507" crossorigin="anonymous"></script>
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#db2777" />
+    <meta name="theme-color" content="#4f46e5" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   </head>

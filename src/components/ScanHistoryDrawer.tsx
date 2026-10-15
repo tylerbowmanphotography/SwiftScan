@@ -100,15 +100,15 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
   const getScanTypeLabel = (type?: string) => {
     switch (type) {
       case 'barcode':
-        return { label: 'Barcode', icon: Tag, color: 'text-purple-400 bg-purple-950/60 border-purple-800/60' };
+        return { label: 'Barcode', icon: Tag, color: 'text-purple-700 bg-purple-50 border-purple-200 dark:text-purple-400 dark:bg-purple-950/60 dark:border-purple-800/60' };
       case 'camera':
-        return { label: 'Photo Scan', icon: Camera, color: 'text-pink-400 bg-pink-950/60 border-pink-800/60' };
+        return { label: 'Photo Scan', icon: Camera, color: 'text-pink-700 bg-pink-50 border-pink-200 dark:text-pink-400 dark:bg-pink-950/60 dark:border-pink-800/60' };
       case 'search':
-        return { label: 'Search', icon: Search, color: 'text-blue-400 bg-blue-950/60 border-blue-800/60' };
+        return { label: 'Search', icon: Search, color: 'text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/60 dark:border-blue-800/60' };
       case 'preset':
-        return { label: 'Preset', icon: Sparkles, color: 'text-amber-400 bg-amber-950/60 border-amber-800/60' };
+        return { label: 'Preset', icon: Sparkles, color: 'text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/60 dark:border-amber-800/60' };
       default:
-        return { label: 'Scan', icon: History, color: 'text-slate-400 bg-slate-800 border-slate-700' };
+        return { label: 'Scan', icon: History, color: 'text-slate-500 dark:text-slate-400 bg-slate-800 border-slate-700' };
     }
   };
 
@@ -130,7 +130,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          className="w-full max-w-md h-full bg-white dark:bg-black text-slate-900 dark:text-slate-100 flex flex-col shadow-2xl border-l border-slate-200 dark:border-slate-800"
+          className="w-full max-w-md h-full bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col shadow-2xl border-l border-slate-200 dark:border-slate-800"
         >
           {/* Drawer Header */}
           <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
@@ -140,7 +140,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
               </div>
               <div>
                 <h2 className="font-extrabold text-base text-slate-900 dark:text-white">Past Scan History</h2>
-                <p className="text-xs text-slate-400 font-medium">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                   {savedItems.length} total product {savedItems.length === 1 ? 'scan' : 'scans'} recorded
                 </p>
               </div>
@@ -149,7 +149,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 transition-colors"
+              className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
             >
               <X size={18} />
             </button>
@@ -163,7 +163,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
               className={`pb-3 text-xs font-bold transition-all border-b-2 flex items-center gap-1.5 ${
                 activeTab === 'all'
                   ? 'text-pink-600 border-pink-600 dark:text-pink-400'
-                  : 'text-slate-400 border-transparent hover:text-slate-200'
+                  : 'text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-200'
               }`}
             >
               <History size={14} />
@@ -176,7 +176,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
               className={`pb-3 text-xs font-bold transition-all border-b-2 flex items-center gap-1.5 ${
                 activeTab === 'bookmarks'
                   ? 'text-pink-600 border-pink-600 dark:text-pink-400'
-                  : 'text-slate-400 border-transparent hover:text-slate-200'
+                  : 'text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-200'
               }`}
             >
               <Bookmark size={14} className={bookmarkedItems.length > 0 ? 'fill-pink-500 text-pink-500' : ''} />
@@ -187,7 +187,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
           {/* Search & Filter Section */}
           <div className="p-4 border-b border-slate-100 dark:border-slate-800/80 space-y-2.5">
             <div className="relative">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
               <input
                 type="text"
                 placeholder="Search history by name, brand, or category..."
@@ -198,7 +198,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
             </div>
 
                         {/* Type filter pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] font-semibold text-slate-400 scrollbar-none pt-1">
+            <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] font-semibold text-slate-500 dark:text-slate-400 scrollbar-none pt-1">
               {[
                 { id: 'all', label: 'All Types' },
                 { id: 'barcode', label: '🏷️ Barcode' },
@@ -213,7 +213,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
                   className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold shrink-0 transition-all ${
                     selectedScanType === pill.id
                       ? 'bg-pink-600 text-white border-pink-600 shadow-sm'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 hover:text-white'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-white'
                   }`}
                 >
                   {pill.label}
@@ -223,14 +223,14 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
             
             {/* Tag filter pills */}
             {allTags.length > 0 && (
-              <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] font-semibold text-slate-400 scrollbar-none pt-1 pb-1">
+              <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] font-semibold text-slate-500 dark:text-slate-400 scrollbar-none pt-1 pb-1">
                 <button
                   type="button"
                   onClick={() => setSelectedTag('all')}
                   className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold shrink-0 transition-all ${
                     selectedTag === 'all'
                       ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 hover:text-white'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-white'
                   }`}
                 >
                   All Folders
@@ -243,7 +243,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
                     className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold shrink-0 transition-all ${
                       selectedTag === tag
                         ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 hover:text-white'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-white'
                     }`}
                   >
                     {tag}
@@ -257,14 +257,14 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {filteredItems.length === 0 ? (
               <div className="text-center py-16 px-4 space-y-3">
-                <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+                <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center mx-auto">
                   <History size={26} />
                 </div>
                 <div>
                   <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
                     {searchQuery ? 'No matching scans found' : activeTab === 'bookmarks' ? 'No saved bookmarks yet' : 'No past scans recorded'}
                   </p>
-                  <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs mx-auto">
                     {searchQuery
                       ? 'Try another search term or scan type filter'
                       : activeTab === 'bookmarks'
@@ -311,10 +311,10 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
                     {/* Content Details */}
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider truncate">
+                        <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
                           {item.scanResult.brand} • {item.scanResult.category}
                         </span>
-                        <span className="text-[10px] font-bold text-slate-400 shrink-0">
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 shrink-0">
                           {formatDate(item.timestamp)}
                         </span>
                       </div>
@@ -329,7 +329,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
                           <span className="text-xs font-black text-pink-600 dark:text-pink-400">
                             {formatCurrency(item.scanResult.goodPrice)}
                           </span>
-                          <span className="text-[10px] text-slate-400 line-through">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 line-through">
                             {formatCurrency(item.scanResult.msrp)}
                           </span>
                         </div>
@@ -472,7 +472,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
                         className={`p-1.5 rounded-lg border transition-colors ${
                           item.isBookmarked
                             ? 'bg-pink-600 text-white border-pink-600'
-                            : 'text-slate-400 hover:text-pink-500 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                            : 'text-slate-500 dark:text-slate-400 hover:text-pink-500 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
                         }`}
                         title={item.isBookmarked ? 'Remove from bookmarks' : 'Bookmark this scan'}
                       >
@@ -493,7 +493,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
                         className={`p-1.5 rounded-lg border transition-colors ${
                           taggingItemId === item.id || (item.tags && item.tags.length > 0)
                             ? 'bg-purple-600 text-white border-purple-600'
-                            : 'text-slate-400 hover:text-purple-500 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                            : 'text-slate-500 dark:text-slate-400 hover:text-purple-500 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
                         }`}
                         title="Manage Folders / Tags"
                       >
@@ -514,7 +514,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
                         className={`p-1.5 rounded-lg border transition-colors ${
                           targetPriceItemId === item.id || item.targetPrice
                             ? 'bg-emerald-600 text-white border-emerald-600'
-                            : 'text-slate-400 hover:text-emerald-500 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                            : 'text-slate-500 dark:text-slate-400 hover:text-emerald-500 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
                         }`}
                         title="Set Target Price Alert"
                       >
@@ -527,7 +527,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
                           e.stopPropagation();
                           onDeleteItem(item.id);
                         }}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-transparent transition-colors"
+                        className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-transparent transition-colors"
                         title="Delete from scan history"
                       >
                         <Trash2 size={14} />
@@ -545,7 +545,7 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
               <button
                 type="button"
                 onClick={handleExportJSON}
-                className="text-xs text-slate-400 hover:text-slate-200 font-bold flex items-center gap-1.5 transition-colors"
+                className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-200 font-bold flex items-center gap-1.5 transition-colors"
                 title="Download history backup"
               >
                 <Download size={14} />
