@@ -67,12 +67,12 @@ export const ManualSearchModal: React.FC<ManualSearchModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/70 backdrop-blur-md p-4">
         <motion.div
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
-          className="w-full max-w-lg bg-white dark:bg-black rounded-3xl p-6 shadow-xl border border-slate-200 dark:border-slate-800 space-y-5"
+          className="w-full max-w-lg bg-white dark:bg-ink-900 rounded-[1.75rem] p-6 sm:p-7 shadow-2xl ring-1 ring-slate-200 dark:ring-white/10 space-y-5"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">

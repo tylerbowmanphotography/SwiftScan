@@ -3,6 +3,8 @@ import path from "path";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { registerMonetizationRoutes, scanQuota } from "./server/monetization";
+import { registerAuthRoutes } from "./server/auth";
+import { registerAlertRoutes, type PriceEstimate } from "./server/alerts";
 
 dotenv.config();
 
@@ -86,7 +88,8 @@ function getGeminiClient() {
   });
 }
 
-// Monetization: /api/config, /api/checkout, /api/checkout/verify, /api/stripe-webhook
+// Accounts + monetization: /api/auth/*, /api/config, /api/checkout*, /api/billing-portal, /api/stripe-webhook
+registerAuthRoutes(app);
 registerMonetizationRoutes(app);
 
 // Health check endpoint
@@ -403,6 +406,32 @@ function extractAndParseJSON(text: string): any {
     throw new Error("Could not parse JSON from model response: " + text.slice(0, 100));
   }
 }
+
+// Price estimate used by the daily price-alert cron. Same Gemini (+ Google Search grounding) stack as
+// /api/scan. These are estimates, not live store prices, and alert emails say so.
+async function estimateCurrentPrice(productName: string, brand?: string): Promise<PriceEstimate | null> {
+  if (!resolveGeminiKey().key) throw new Error("No Gemini API key configured");
+  const label = brand && !productName.toLowerCase().includes(brand.toLowerCase()) ? `${brand} ${productName}` : productName;
+  const prompt = `Find the lowest typical current US retail price (new, in stock, USD) for this exact product: "${label}".
+Use web search if available. Return ONLY valid JSON (no markdown):
+{"lowestPrice": 24.99, "retailer": "Retailer Name", "url": "https://www.retailer.com/product", "goodPrice": 24.99}
+These are estimates. If you cannot find a credible price, return {"lowestPrice": null}.`;
+  let text = "";
+  try {
+    text = await generateWithFallback({ contents: prompt, config: { tools: [{ googleSearch: {} }] } });
+    extractAndParseJSON(text);
+  } catch {
+    text = await generateWithFallback({ contents: prompt, config: { responseMimeType: "application/json" } });
+  }
+  const parsed = extractAndParseJSON(text);
+  const price = Number(parsed?.lowestPrice ?? parsed?.goodPrice);
+  if (!Number.isFinite(price) || price <= 0 || price > 100000) return null;
+  const url = typeof parsed.url === "string" && /^https?:\/\//i.test(parsed.url) ? parsed.url : undefined;
+  return { price: Number(price.toFixed(2)), retailer: parsed.retailer ? String(parsed.retailer).slice(0, 60) : undefined, url };
+}
+
+// Saved-item sync, price alerts, and the daily alert cron
+registerAlertRoutes(app, estimateCurrentPrice);
 
 // Main Product Scan API endpoint
 app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {
@@ -732,11 +761,18 @@ app.all("/api/*", (req, res) => {
       "/api/ask",
       "/api/autocomplete",
       "/api/local-stores",
+      "/api/config",
+      "/api/auth/request",
+      "/api/auth/verify",
     ],
   });
 });
 
 async function startServer() {
+  // Static legal pages (on Vercel these are served from /public by the platform)
+  for (const name of ["privacy", "terms"]) {
+    app.get(`/${name}`, (_req, res) => res.sendFile(path.join(process.cwd(), "public", `${name}.html`)));
+  }
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
