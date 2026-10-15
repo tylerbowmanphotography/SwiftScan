@@ -30,6 +30,7 @@ import { ManualSearchModal } from './components/ManualSearchModal';
 import { UpgradeModal } from './components/UpgradeModal';
 import { Footer } from './components/Footer';
 import { AccountModal } from './components/AccountModal';
+import { Hero, HowItWorks, Features, ProSection, SectionHeading } from './components/Landing';
 
 import { ProductScanResult, SavedScanItem, SampleProductPreset, UnidentifiedBarcode } from './types';
 import { SAMPLE_PRESETS } from './data/samplePresets';
@@ -58,6 +59,14 @@ export default function App() {
   const [lastCapturedImage, setLastCapturedImage] = useState<string | undefined>(undefined);
 
   const [isDarkMode, setIsDarkMode] = useState(true);
+  // The floating mobile scan button only appears after the hero's own scan button has scrolled away.
+  const [showScanFab, setShowScanFab] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setShowScanFab(window.scrollY > 520);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   // Monetization state: public config (affiliate IDs, paid tier flag) and free-scan usage
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
@@ -564,7 +573,7 @@ export default function App() {
 
   // Render the core app body with sleek obsidian aesthetic
   const renderAppContent = () => (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-pink-600 selection:text-white">
+    <div className="min-h-screen text-slate-900 dark:text-slate-100 font-sans selection:bg-pink-600 selection:text-white">
       {/* Header */}
       <Header
         onOpenScanner={() => setIsScannerOpen(true)}
@@ -580,18 +589,19 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-10">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-8">
         {checkoutNotice && (
-          <div className="p-3 bg-emerald-950/80 border border-emerald-800 text-emerald-300 rounded-2xl text-xs font-bold flex items-center justify-between gap-3">
-            <span>{checkoutNotice}</span>
-            <button type="button" onClick={() => setCheckoutNotice(null)} className="underline shrink-0">Dismiss</button>
+          <div role="status" className="p-4 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-200 rounded-2xl text-sm font-semibold flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2.5"><CheckCircle2 size={18} className="shrink-0" aria-hidden />{checkoutNotice}</span>
+            <button type="button" onClick={() => setCheckoutNotice(null)} className="underline shrink-0 font-bold">Dismiss</button>
           </div>
         )}
 
         {/* Free scan counter */}
         {usage && !usage.isPro && usage.limit !== null && (
-          <div className="flex items-center justify-between gap-3 px-4 py-2 rounded-2xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-            <span>
+          <div className="ss-card flex items-center justify-between gap-3 px-4 py-3 rounded-2xl text-sm font-semibold text-slate-700 dark:text-slate-200">
+            <span className="flex items-center gap-2.5">
+              <span className={`h-2.5 w-2.5 rounded-full ${usage.exhausted ? 'bg-rose-500' : 'bg-emerald-500'}`} aria-hidden />
               {usage.exhausted
                 ? 'No free scans left today'
                 : `${usage.remaining} of ${usage.limit} free scans left today`}
@@ -599,27 +609,29 @@ export default function App() {
             <button
               type="button"
               onClick={() => setLimitModal({})}
-              className="text-pink-500 font-extrabold underline"
+              className="text-pink-700 dark:text-pink-300 font-extrabold underline underline-offset-4"
             >
               {appConfig?.paid.enabled ? 'Go Pro' : 'Pro coming soon'}
             </button>
           </div>
         )}
+
         {/* Error Banner */}
         {errorMessage && !limitModal && (
           <motion.div
+            role="alert"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-4 bg-rose-950/80 border border-rose-800/80 text-rose-300 rounded-2xl flex items-center justify-between gap-3 text-xs font-semibold shadow-xl"
+            className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-800 dark:text-rose-200 rounded-2xl flex items-center justify-between gap-3 text-sm font-semibold shadow-soft"
           >
             <div className="flex items-center gap-2.5">
-              <AlertCircle size={18} className="shrink-0 text-rose-400" />
+              <AlertCircle size={20} className="shrink-0 text-rose-500" aria-hidden />
               <span>{errorMessage}</span>
             </div>
             <button
               type="button"
               onClick={() => setErrorMessage(null)}
-              className="font-extrabold underline shrink-0 hover:text-slate-900 dark:hover:text-white transition-colors"
+              className="font-extrabold underline shrink-0"
             >
               Dismiss
             </button>
@@ -631,38 +643,38 @@ export default function App() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 rounded-3xl space-y-3 shadow-xl"
+            className="p-5 sm:p-6 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-3xl space-y-4 shadow-soft"
           >
             <div className="flex items-start gap-3">
-              <AlertCircle size={22} className="shrink-0 text-amber-500 mt-0.5" />
+              <AlertCircle size={24} className="shrink-0 text-amber-500 mt-0.5" aria-hidden />
               <div className="space-y-1">
-                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">We couldn't identify this barcode</h3>
-                <p className="text-xs text-slate-600 dark:text-slate-300">
+                <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">We couldn't identify this barcode</h3>
+                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
                   Barcode <span className="font-mono font-bold">{unidentified.barcode}</span> isn't in the product databases we check, so we won't guess. {unidentified.lookupIncomplete ? 'Some databases were unavailable, so trying again in a minute may help. ' : ''}Take a photo of the front of the product, or search by name.
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2 pt-1">
+            <div className="flex flex-wrap gap-2.5 pt-1">
               <button
                 type="button"
                 onClick={() => { setUnidentified(null); setIsScannerOpen(true); }}
-                className="px-4 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold flex items-center gap-1.5"
+                className="ss-btn-primary px-4 min-h-11 text-sm"
               >
-                <Camera size={14} />
+                <Camera size={16} aria-hidden />
                 <span>Take a photo of the product front</span>
               </button>
               <button
                 type="button"
                 onClick={() => { setUnidentified(null); setIsSearchOpen(true); }}
-                className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-bold flex items-center gap-1.5"
+                className="ss-btn-secondary px-4 min-h-11 text-sm"
               >
-                <Search size={14} />
+                <Search size={16} aria-hidden />
                 <span>Search by name</span>
               </button>
               <button
                 type="button"
                 onClick={() => setUnidentified(null)}
-                className="px-4 py-2 rounded-xl text-slate-500 dark:text-slate-400 text-xs font-bold underline"
+                className="px-4 min-h-11 rounded-xl text-slate-600 dark:text-slate-300 text-sm font-bold underline"
               >
                 Dismiss
               </button>
@@ -672,15 +684,15 @@ export default function App() {
 
         {/* Global Loading Overlay */}
         {isLoading && (
-          <div className="bg-white dark:bg-slate-900/90 rounded-3xl p-10 border border-slate-200 dark:border-slate-800 text-center shadow-2xl space-y-5 backdrop-blur-xl">
-            <div className="relative w-20 h-20 mx-auto">
-              <div className="absolute inset-0 rounded-full border-4 border-pink-950/60" />
+          <div role="status" aria-live="polite" className="ss-card rounded-3xl p-10 sm:p-14 text-center space-y-6">
+            <div className="relative w-24 h-24 mx-auto">
+              <div className="absolute inset-0 rounded-full border-4 border-pink-100 dark:border-pink-500/20" />
               <div className="absolute inset-0 rounded-full border-4 border-pink-500 border-t-transparent animate-spin" />
-              <Sparkles className="absolute inset-0 m-auto text-pink-400 animate-pulse" size={28} />
+              <Sparkles className="absolute inset-0 m-auto text-pink-600 dark:text-pink-300 animate-pulse" size={30} aria-hidden />
             </div>
-            <div className="space-y-1.5">
-              <h3 className="text-lg font-black text-slate-900 dark:text-white">Analyzing Product & Market Pricing...</h3>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+            <div className="space-y-2">
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">Analyzing product and market pricing&hellip;</h3>
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-300 max-w-md mx-auto">
                 Looking up the product and estimating prices. Estimates are not live store prices.
               </p>
             </div>
@@ -699,207 +711,152 @@ export default function App() {
             onOpenSearch={() => setIsSearchOpen(true)}
           />
         ) : !isLoading ? (
-          /* Landing Hero Studio / Scanner Hub */
-          <div className="space-y-10">
-            {/* HERO BANNER CARD */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-black rounded-3xl p-6 sm:p-10 border border-slate-200 dark:border-slate-800/90 shadow-2xl">
-              <div className="relative z-10 space-y-6 max-w-2xl">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-pink-950/80 border border-pink-800/60 rounded-full text-pink-300 text-xs font-extrabold uppercase tracking-wider">
-                  <Sparkles size={14} className="text-pink-400" />
-                  <span>Real-Time Deal Intelligence Engine</span>
-                </div>
+          /* Landing: hero, how it works, samples, features, Pro */
+          <div className="space-y-14 sm:space-y-20">
+            <Hero onOpenScanner={() => setIsScannerOpen(true)} onOpenSearch={() => setIsSearchOpen(true)} />
 
-                <h2 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight text-slate-900 dark:text-white">
-                  Know if it's a good price <br className="hidden sm:inline" />
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-rose-400 to-purple-400">
-                    before you buy.
-                  </span>
-                </h2>
-
-                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-normal">
-                  Snap any barcode, product label, or store box. SwiftScan instantly verifies MSRP list prices, checks 6-month historical lows, aggregates buyer reviews, and compares live deals across major retailers.
-                </p>
-
-                {/* Primary Scan Mode Buttons */}
-                <div className="pt-2 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsScannerOpen(true)}
-                    className="px-6 py-3.5 bg-gradient-to-r from-pink-600 via-rose-500 to-pink-500 hover:from-pink-500 hover:to-rose-600 text-slate-900 dark:text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-xl shadow-pink-600/30 flex items-center gap-2.5 transition-all active:scale-95 border border-pink-400/20"
-                  >
-                    <Camera size={18} />
-                    <span>Open Camera Vision Scanner</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsSearchOpen(true)}
-                    className="px-5 py-3.5 bg-white dark:bg-slate-900/90 hover:bg-slate-800 text-slate-800 dark:text-slate-200 font-extrabold text-xs sm:text-sm rounded-2xl backdrop-blur-md border border-slate-200 dark:border-slate-800 flex items-center gap-2.5 transition-all"
-                  >
-                    <Search size={18} className="text-pink-400" />
-                    <span>Search Product by Name</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Decorative Glow Elements */}
-              <div className="absolute -right-16 -bottom-16 w-80 h-80 bg-pink-600/15 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute right-20 top-0 w-48 h-48 bg-purple-600/10 rounded-full blur-2xl pointer-events-none" />
-            </div>
-
-            {/* TRUST HIGHLIGHTS BENTO GRID */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-5 bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-                <div className="w-9 h-9 rounded-xl bg-pink-950/60 text-pink-400 flex items-center justify-center font-bold text-xs mb-1 border border-pink-800/50">
-                  <TrendingDown size={18} />
-                </div>
-                <h3 className="font-extrabold text-xs text-slate-900 dark:text-white uppercase tracking-wider">Fair Price Gauge</h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
-                  Classifies every product deal as Steal 🔥, Good Deal 👍, Fair ⚖️, or Overpriced ⏳ based on 6-month historical range data.
-                </p>
-              </div>
-
-              <div className="p-5 bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-                <div className="w-9 h-9 rounded-xl bg-amber-950/60 text-amber-400 flex items-center justify-center font-bold text-xs mb-1 border border-amber-800/50">
-                  <ShieldCheck size={18} />
-                </div>
-                <h3 className="font-extrabold text-xs text-slate-900 dark:text-white uppercase tracking-wider">Verified Reviews</h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
-                  Aggregates verified buyer pros, cons, sentiment scores, and technical specs into concise actionable insights.
-                </p>
-              </div>
-
-              <div className="p-5 bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-                <div className="w-9 h-9 rounded-xl bg-emerald-950/60 text-emerald-400 flex items-center justify-center font-bold text-xs mb-1 border border-emerald-800/50">
-                  <Store size={18} />
-                </div>
-                <h3 className="font-extrabold text-xs text-slate-900 dark:text-white uppercase tracking-wider">Retail Cross-Check</h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
-                  Compares live in-stock pricing across Amazon, Best Buy, Walmart, Target, Micro Center, B&H, and eBay.
-                </p>
-              </div>
-            </div>
+            <HowItWorks />
 
             {/* RECENT PAST SCANS SECTION */}
             {savedItems.length > 0 && (
-              <div className="space-y-4 pt-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <History size={18} className="text-pink-400" />
-                      <h3 className="font-black text-lg text-slate-900 dark:text-white">Recent Past Scans</h3>
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Instant 1-click restore for your saved product scan history</p>
-                  </div>
+              <section aria-labelledby="recent-title" className="space-y-5">
+                <SectionHeading
+                  eyebrow="Your history"
+                  title="Recent scans"
+                  action={
+                    <button
+                      type="button"
+                      onClick={() => setIsHistoryOpen(true)}
+                      className="text-sm text-pink-700 dark:text-pink-300 font-extrabold hover:underline flex items-center gap-1 shrink-0 min-h-11"
+                    >
+                      <span>View all ({savedItems.length})</span>
+                      <ArrowRight size={15} aria-hidden />
+                    </button>
+                  }
+                />
 
-                  <button
-                    type="button"
-                    onClick={() => setIsHistoryOpen(true)}
-                    className="text-xs text-pink-400 font-extrabold hover:underline flex items-center gap-1 transition-colors"
-                  >
-                    <span>View All ({savedItems.length})</span>
-                    <ArrowRight size={14} />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {savedItems.slice(0, 3).map((item) => (
-                    <div
+                    <button
+                      type="button"
                       key={item.id}
                       onClick={() => {
                         setCurrentScanResult(item.scanResult);
                         setLastCapturedImage(item.thumbnailUrl);
                       }}
-                      className="group relative p-3.5 bg-white dark:bg-slate-900/80 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-pink-600/50 shadow-sm transition-all cursor-pointer flex gap-3.5 items-center overflow-hidden"
+                      className="group ss-card ss-card-hover relative p-4 rounded-3xl text-left flex gap-4 items-center overflow-hidden"
                     >
                       {item.thumbnailUrl ? (
                         <img
                           src={item.thumbnailUrl}
-                          alt={item.scanResult.productName}
-                          className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-200 dark:border-slate-800 group-hover:scale-105 transition-transform"
+                          alt=""
+                          className="w-20 h-20 rounded-2xl object-cover shrink-0 border border-slate-200 dark:border-white/10"
                         />
                       ) : (
-                        <div className="w-16 h-16 rounded-xl bg-pink-950/60 text-pink-400 flex items-center justify-center shrink-0 border border-pink-900/50">
-                          <Tag size={22} />
+                        <div className="w-20 h-20 rounded-2xl bg-pink-50 dark:bg-pink-500/15 text-pink-600 dark:text-pink-300 flex items-center justify-center shrink-0">
+                          <Tag size={26} aria-hidden />
                         </div>
                       )}
 
                       <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-center justify-between gap-1">
-                          <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block truncate">
+                          <span className="text-[11px] font-extrabold text-slate-600 dark:text-slate-400 uppercase tracking-wider block truncate">
                             {item.scanResult.brand}
                           </span>
                           {item.isBookmarked && (
-                            <Bookmark size={12} className="fill-pink-500 text-pink-500 shrink-0" />
+                            <Bookmark size={14} className="fill-pink-500 text-pink-500 shrink-0" aria-label="Bookmarked" />
                           )}
                         </div>
 
-                        <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate group-hover:text-pink-400 transition-colors">
+                        <h3 className="text-sm font-extrabold text-slate-900 dark:text-white line-clamp-2 leading-snug">
                           {item.scanResult.productName}
-                        </h4>
+                        </h3>
 
                         <div className="flex items-center gap-2 pt-0.5">
-                          <span className="text-xs font-black text-pink-400">
+                          <span className="text-base font-black text-pink-700 dark:text-pink-300">
                             ${item.scanResult.goodPrice}
                           </span>
-                          <span className="text-[10px] text-slate-500 line-through">
+                          <span className="text-xs text-slate-500 dark:text-slate-400 line-through">
                             ${item.scanResult.msrp}
                           </span>
                         </div>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
-              </div>
+              </section>
             )}
 
             {/* PRESET SAMPLE PRODUCTS GRID */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-black text-lg text-slate-900 dark:text-white">Featured Sample Product Presets</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Tap any test product below to evaluate SwiftScan price analysis instantly</p>
-                </div>
-              </div>
+            <section aria-labelledby="samples-title" className="space-y-5">
+              <SectionHeading
+                eyebrow="See it in action"
+                title="Try a sample product"
+                hint="Tap any item to see how a SwiftScan price check looks."
+              />
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-5">
                 {SAMPLE_PRESETS.map((preset) => (
-                  <div
+                  <button
+                    type="button"
                     key={preset.id}
                     onClick={() => handlePresetScan(preset)}
-                    className="group relative bg-white dark:bg-slate-900/80 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-2xl p-3.5 border border-slate-200 dark:border-slate-800 hover:border-pink-600/50 shadow-sm transition-all cursor-pointer flex flex-col justify-between overflow-hidden"
+                    className="group ss-card ss-card-hover relative rounded-3xl p-2.5 sm:p-3 text-left flex flex-col overflow-hidden"
                   >
-                    <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-950 mb-3 border border-slate-200 dark:border-slate-800/80">
+                    <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-slate-100 dark:bg-ink-800">
                       <img
                         src={preset.imageUrl}
                         alt={preset.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
-                      <span className="absolute top-2 left-2 bg-slate-50 dark:bg-slate-950/80 text-slate-900 dark:text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md backdrop-blur-md border border-slate-200 dark:border-slate-800">
+                      <span className="absolute top-2 left-2 bg-white/90 dark:bg-ink-950/80 text-slate-800 dark:text-white text-[11px] font-extrabold px-2.5 py-1 rounded-full backdrop-blur-md">
                         {preset.category}
                       </span>
                     </div>
 
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                    <div className="space-y-0.5 pt-3 px-1">
+                      <span className="text-[11px] font-extrabold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">
                         {preset.brand}
                       </span>
-                      <h4 className="text-xs font-bold text-slate-900 dark:text-white line-clamp-2 leading-tight group-hover:text-pink-400 transition-colors">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white line-clamp-2 leading-snug">
                         {preset.name}
-                      </h4>
+                      </h3>
                     </div>
 
-                    <div className="mt-3 pt-2.5 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[11px] font-extrabold text-pink-400">
-                      <span>Analyze Deals</span>
-                      <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                    <div className="mt-3 mx-1 mb-1 pt-3 border-t border-slate-100 dark:border-white/[0.07] flex items-center justify-between text-xs font-extrabold text-pink-700 dark:text-pink-300">
+                      <span>Check the price</span>
+                      <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" aria-hidden />
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
-            </div>
+            </section>
+
+            <Features alertsAvailable={!!appConfig?.accounts?.enabled} />
+
+            <ProSection
+              paidEnabled={!!appConfig?.paid.enabled}
+              isPro={!!(usage?.isPro || user?.isPro)}
+              onSignInRequired={() => setAccountModal({ reason: 'Sign in with your email first so Pro follows you to any device.' })}
+            />
           </div>
         ) : null}
       </main>
+
+      {/* Mobile scan button: always within thumb reach */}
+      {showScanFab && !currentScanResult && !isScannerOpen && (
+        <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-6 bg-gradient-to-t from-slate-50 via-slate-50/80 to-transparent dark:from-ink-950 dark:via-ink-950/80 sm:hidden pointer-events-none">
+          <button
+            type="button"
+            onClick={() => setIsScannerOpen(true)}
+            className="ss-btn-primary pointer-events-auto min-h-[3.5rem] w-full max-w-sm text-base"
+          >
+            <Camera size={21} aria-hidden />
+            <span>Scan an item</span>
+          </button>
+        </div>
+      )}
 
       <Footer affiliate={appConfig?.affiliate || {}} />
 
@@ -966,7 +923,7 @@ export default function App() {
   if (isIphoneFrameMode) {
     return (
       <div className="min-h-screen bg-slate-100 dark:bg-black flex flex-col items-center justify-center p-2 sm:p-6 select-none">
-        <div className="relative w-full max-w-[410px] h-[850px] max-h-[92vh] bg-slate-50 dark:bg-slate-950 rounded-[55px] p-3 shadow-[0_0_100px_rgba(236,72,153,0.25)] border-4 border-slate-200 dark:border-slate-800 ring-1 ring-slate-700 overflow-hidden flex flex-col">
+        <div className="relative w-full max-w-[410px] h-[850px] max-h-[92vh] bg-slate-50 dark:bg-slate-950 rounded-[55px] p-3 shadow-[0_0_100px_rgba(99,102,241,0.25)] border-4 border-slate-200 dark:border-slate-800 ring-1 ring-slate-700 overflow-hidden flex flex-col">
           {/* iPhone Dynamic Island Header */}
           <div className="absolute top-5 left-1/2 -translate-x-1/2 z-50 w-28 h-7 bg-slate-100 dark:bg-black rounded-full flex items-center justify-between px-2.5 shadow-md">
             <div className="w-2.5 h-2.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800" />
