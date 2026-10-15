@@ -1,36 +1,103 @@
 @import "tailwindcss";
 
+/* Tailwind v4: class-based dark mode (the app toggles `.dark` on <html>). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens.
+ * The brand color reuses the existing `pink-*` utility names so every component picks up the
+ * new indigo palette from one place. Savings/positive states use emerald, warnings amber,
+ * errors rose.
+ */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --color-pink-50: #eef2ff;
+  --color-pink-100: #e0e7ff;
+  --color-pink-200: #c7d2fe;
+  --color-pink-300: #a5b4fc;
+  --color-pink-400: #818cf8;
+  --color-pink-500: #6366f1;
+  --color-pink-600: #4f46e5;
+  --color-pink-700: #4338ca;
+  --color-pink-800: #3730a3;
+  --color-pink-900: #312e81;
+  --color-pink-950: #1e1b4b;
+
+  --shadow-soft: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -6px rgb(15 23 42 / 0.08);
+  --shadow-lift: 0 2px 4px rgb(15 23 42 / 0.05), 0 18px 40px -12px rgb(79 70 229 / 0.22);
+
+  --animate-rise: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-pulse-ring: pulse-ring 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgb(99 102 241 / 0.45); }
+    70% { box-shadow: 0 0 0 18px rgb(99 102 241 / 0); }
+    100% { box-shadow: 0 0 0 0 rgb(99 102 241 / 0); }
+  }
+}
+
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
   body {
-    @apply bg-slate-950 text-slate-100 antialiased selection:bg-pink-600 selection:text-white min-h-screen;
+    @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased selection:bg-pink-600 selection:text-white min-h-screen;
+    font-family: var(--font-sans);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:not(:disabled) { cursor: pointer; }
+  :focus-visible {
+    outline: 2px solid var(--color-pink-500);
+    outline-offset: 2px;
+  }
+  /* 16px inputs stop iOS Safari from zooming the page when a field is focused */
+  @media (max-width: 640px) {
+    input, textarea, select { font-size: 16px !important; }
+  }
+}
+
+@layer components {
+  /* Soft-shadow surface used across the landing page */
+  .ss-card {
+    @apply bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl shadow-soft;
+  }
+  .ss-card-hover {
+    @apply transition duration-300 hover:-translate-y-0.5 hover:shadow-lift hover:border-pink-300 dark:hover:border-pink-700/70;
+  }
+  .ss-btn-primary {
+    @apply inline-flex items-center justify-center gap-2.5 rounded-2xl bg-pink-600 px-6 py-4 text-base font-bold text-white shadow-lg shadow-pink-600/30 transition hover:bg-pink-700 active:scale-[0.98];
+  }
+  .ss-btn-secondary {
+    @apply inline-flex items-center justify-center gap-2.5 rounded-2xl border border-slate-300 bg-white px-5 py-4 text-base font-bold text-slate-800 transition hover:border-pink-400 hover:text-pink-700 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-pink-500 dark:hover:text-pink-300;
+  }
+  .ss-eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.14em] text-pink-700 dark:text-pink-300;
   }
 }
 
 /* Custom Scrollbar Styling */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(236, 72, 153, 0.3);
-  border-radius: 9999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(236, 72, 153, 0.6);
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.6); }
 
 /* Utility for hiding scrollbar when needed */
-.scrollbar-none {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.scrollbar-none::-webkit-scrollbar {
-  display: none;
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+/* Respect users who ask for less motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

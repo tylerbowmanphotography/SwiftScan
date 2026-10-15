@@ -170,7 +170,7 @@ export const ProductResultView: React.FC<ProductResultViewProps> = ({
         return {
           bg: 'bg-pink-500/10 border-pink-500/30 text-pink-600 dark:text-pink-400',
           label: 'Good Deal 👍',
-          gradient: 'from-pink-500 to-blue-600',
+          gradient: 'from-pink-500 to-violet-600',
         };
       case 'FAIR':
         return {
@@ -207,8 +207,8 @@ export const ProductResultView: React.FC<ProductResultViewProps> = ({
     ? 'MATCHED FROM YOUR SEARCH'
     : 'UNVERIFIED';
   const idBadgeClass = isDbVerified
-    ? 'bg-emerald-950/60 text-emerald-400 border-emerald-900/50'
-    : 'bg-amber-950/60 text-amber-300 border-amber-900/50';
+    ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-900/50'
+    : 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-900/50';
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -252,7 +252,7 @@ Summary: ${result.summary}`;
     <div className="w-full max-w-3xl mx-auto space-y-6 pb-24">
       <AdBanner />
       {/* Top Banner Card with Image & Title */}
-      <div className="bg-white dark:bg-black rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 relative overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
           {(capturedImageUrl || ident?.imageUrl) ? (
             <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200 dark:border-slate-700 shadow-inner group">
@@ -292,7 +292,7 @@ Summary: ${result.summary}`;
                 <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                   {result.brand}
                 </span>
-                <span className="text-xs font-semibold text-slate-400">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                   • {result.category}
                 </span>
               </div>
@@ -305,10 +305,10 @@ Summary: ${result.summary}`;
                 <button
                   type="button"
                   onClick={() => setShowReportModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-amber-950/70 hover:bg-amber-900 text-amber-300 border border-amber-800/80 transition-all shadow-sm active:scale-95 cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-950/70 dark:hover:bg-amber-900 dark:text-amber-300 dark:border-amber-800/80 transition-all shadow-sm active:scale-95 cursor-pointer"
                   title="Alert or correct misidentified scan item"
                 >
-                  <AlertTriangle size={13} className="text-amber-400" />
+                  <AlertTriangle size={13} className="text-amber-600 dark:text-amber-400" />
                   <span>Incorrect Item?</span>
                 </button>
               </div>
@@ -330,7 +330,7 @@ Summary: ${result.summary}`;
                   </div>
                 )}
                 {hasRating && hasReviewCount && (
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
                     ({result.totalReviewsCount!.toLocaleString()} reviews)
                   </span>
                 )}
@@ -383,7 +383,7 @@ Summary: ${result.summary}`;
       </div>
 
       {/* HOW THIS PRODUCT WAS IDENTIFIED (honest provenance, no fake certainty) */}
-      <div className="bg-white dark:bg-black rounded-3xl p-5 shadow-sm border border-slate-200 dark:border-slate-800 space-y-3.5">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-sm border border-slate-200 dark:border-slate-800 space-y-3.5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className={`p-2.5 rounded-2xl border shrink-0 ${
@@ -397,7 +397,7 @@ Summary: ${result.summary}`;
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                 {isDbVerified ? 'Identified from barcode database' : isPhotoId ? 'Identified by AI from your photo (unverified)' : ident?.method === 'search' || ident?.method === 'correction' ? 'Product from your search' : 'Identification not verified'}
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 {isDbVerified
                   ? `UPC ${ident?.upc || ''} matched in ${ident?.source}. Name and brand come from that database. Prices below are AI estimates.`
                   : isPhotoId
@@ -415,7 +415,7 @@ Summary: ${result.summary}`;
             <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
               <div className="h-full rounded-full bg-amber-500" style={{ width: `${confidenceVal}%` }} />
             </div>
-            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400">
+            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
               <span>AI estimate: {confidenceVal}% (capped, not verified)</span>
             </div>
           </div>
@@ -423,15 +423,15 @@ Summary: ${result.summary}`;
       </div>
 
       {/* PRICE ADVISOR & DEAL ASSESSMENT CARD */}
-      <div className="bg-white dark:bg-black rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-5">
-        <div className="flex items-center justify-between">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-5">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2.5">
             <div className="p-2.5 bg-pink-50 dark:bg-pink-950/50 text-pink-600 dark:text-pink-400 rounded-xl border border-pink-100 dark:border-pink-900/40">
               <DollarSign size={20} />
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white">Price & Value Assessment</h2>
-              <p className="text-xs text-slate-400">AI price estimates. Confirm at the retailer before buying.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">AI price estimates. Confirm at the retailer before buying.</p>
             </div>
           </div>
 
@@ -441,37 +441,58 @@ Summary: ${result.summary}`;
         </div>
 
         {/* PRICE TARGET CARDS GRID */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700/60 text-center">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+        <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+          <div className="p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 text-center">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
               List MSRP
             </span>
-            <span className="text-base sm:text-lg font-bold text-slate-400 dark:text-slate-500 line-through">
+            <span className="text-base sm:text-lg font-bold text-slate-500 dark:text-slate-400 line-through decoration-slate-400/70">
               {formatCurrency(result.msrp)}
             </span>
           </div>
 
-          <div className="p-4 bg-pink-50/60 dark:bg-pink-950/40 rounded-2xl border border-pink-100 dark:border-pink-900/50 text-center">
-            <span className="text-[11px] font-bold text-pink-600 dark:text-pink-400 uppercase tracking-wider block mb-1">
+          <div className="p-3.5 sm:p-4 bg-gradient-to-br from-pink-600 to-violet-600 rounded-2xl text-center shadow-lg shadow-pink-600/25 ring-1 ring-white/10">
+            <span className="text-[10px] sm:text-[11px] font-bold text-pink-100 uppercase tracking-wider block mb-1">
               Target (Lowest)
             </span>
-            <span className="text-base sm:text-xl font-bold text-pink-600 dark:text-pink-400">
+            <span className="text-lg sm:text-2xl font-extrabold text-white">
               {formatCurrency(result.goodPrice)}
             </span>
           </div>
 
-          <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/40 rounded-2xl border border-emerald-100 dark:border-emerald-900/50 text-center">
-            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block mb-1">
+          <div className="p-3.5 sm:p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200/70 dark:border-emerald-900/50 text-center">
+            <span className="text-[10px] sm:text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider block mb-1">
               Steal Deal
             </span>
-            <span className="text-base sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">
+            <span className="text-base sm:text-xl font-bold text-emerald-700 dark:text-emerald-400">
               {formatCurrency(result.greatDealPrice)}
             </span>
           </div>
         </div>
 
+        {/* PRICE POSITION SCALE (built only from the estimates above) */}
+        {(() => {
+          const points = [result.greatDealPrice, result.goodPrice, result.msrp].filter((n) => typeof n === 'number' && isFinite(n));
+          if (points.length < 2) return null;
+          const lo = Math.min(...points);
+          const hi = Math.max(...points);
+          if (hi <= lo) return null;
+          const pos = (n: number) => Math.min(100, Math.max(0, ((n - lo) / (hi - lo)) * 100));
+          return (
+            <div className="space-y-2" aria-label="Estimated price scale from steal price to list price">
+              <div className="relative h-3 rounded-full overflow-hidden bg-gradient-to-r from-emerald-500 via-pink-500 to-amber-400">
+                <span className="absolute inset-y-0 w-0.5 bg-white/90" style={{ left: `${pos(result.goodPrice)}%` }} />
+              </div>
+              <div className="relative h-5 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                <span className="absolute left-0">Steal {formatCurrency(result.greatDealPrice)}</span>
+                <span className="absolute right-0">List {formatCurrency(result.msrp)}</span>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* VERDICT & ADVICE BANNER */}
-        <div className="p-5 bg-slate-900 text-white rounded-2xl shadow-md border border-slate-800 space-y-2">
+        <div className="p-5 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl shadow-md border border-slate-800 space-y-2">
           <div className="flex items-center gap-2 text-pink-400 text-xs font-bold uppercase tracking-widest">
             <ShieldCheck size={16} />
             <span>AI Expert Verdict</span>
@@ -487,17 +508,25 @@ Summary: ${result.summary}`;
         {/* HISTORICAL RANGE METER */}
         {result.historicalPriceRange && (
           <div className="pt-2 space-y-2">
-            <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium">
               <span>All-time Low: <strong className="text-slate-900 dark:text-white font-bold">{formatCurrency(result.historicalPriceRange.lowestEver)}</strong></span>
               <span>Average: <strong className="text-slate-900 dark:text-white font-bold">{formatCurrency(result.historicalPriceRange.averagePrice)}</strong></span>
               <span>High: <strong className="text-slate-900 dark:text-white font-bold">{formatCurrency(result.historicalPriceRange.highestPrice)}</strong></span>
             </div>
-            <div className="relative w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-              <div
-                className="absolute h-full bg-pink-600 rounded-full"
-                style={{ width: '100%' }}
-              />
-            </div>
+            {(() => {
+              const h = result.historicalPriceRange!;
+              const span = h.highestPrice - h.lowestEver;
+              const at = (n: number) => (span > 0 ? Math.min(100, Math.max(0, ((n - h.lowestEver) / span) * 100)) : 50);
+              return (
+                <div className="relative w-full h-2.5 rounded-full bg-gradient-to-r from-emerald-500 via-pink-500 to-amber-400" aria-label="Estimated historical price range">
+                  <span
+                    className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white border-[3px] border-slate-900 dark:border-white shadow"
+                    style={{ left: `calc(${at(h.averagePrice)}% - 8px)` }}
+                    title={`Average ${formatCurrency(h.averagePrice)}`}
+                  />
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
@@ -526,7 +555,7 @@ Summary: ${result.summary}`;
             }}
             className={`flex-1 py-2.5 px-3 text-xs font-bold rounded-xl transition-all whitespace-nowrap ${
               activeTab === tab.id
-                ? 'bg-white dark:bg-black text-slate-900 dark:text-white shadow-sm'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -539,7 +568,7 @@ Summary: ${result.summary}`;
       {activeTab === 'overview' && (
         <div className="space-y-6">
           {/* Summary Box */}
-          <div className="bg-white dark:bg-black rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-3">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-3">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Info size={16} className="text-pink-600" />
               <span>Product Summary</span>
@@ -550,7 +579,7 @@ Summary: ${result.summary}`;
           </div>
 
           {/* DEDICATED GOOGLE GEMINI AI PRODUCT DESCRIPTION CARD */}
-          <div className="bg-white dark:bg-black rounded-3xl p-6 shadow-sm border border-pink-100 dark:border-pink-900/40 space-y-4 relative overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-pink-100 dark:border-pink-900/40 space-y-4 relative overflow-hidden">
             <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-pink-50 dark:bg-pink-950/50 text-pink-600 dark:text-pink-400 rounded-xl">
@@ -558,7 +587,7 @@ Summary: ${result.summary}`;
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">Google Gemini Product Description</h3>
-                  <p className="text-xs text-slate-400 font-medium">Deep AI analysis of architecture, build, and user fit</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Deep AI analysis of architecture, build, and user fit</p>
                 </div>
               </div>
 
@@ -643,7 +672,7 @@ Summary: ${result.summary}`;
       {/* TAB CONTENT: ASK GOOGLE GEMINI Q&A */}
       {activeTab === 'ask' && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-black rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-5">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-2.5">
                 <div className="p-2.5 bg-pink-50 dark:bg-pink-950/50 text-pink-600 dark:text-pink-400 rounded-xl border border-pink-100 dark:border-pink-900/40">
@@ -651,7 +680,7 @@ Summary: ${result.summary}`;
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">Ask Google Gemini About This Product</h3>
-                  <p className="text-xs text-slate-400 font-medium">Ask questions regarding compatibility, warranty, performance, or alternatives</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Ask questions regarding compatibility, warranty, performance, or alternatives</p>
                 </div>
               </div>
 
@@ -663,7 +692,7 @@ Summary: ${result.summary}`;
 
             {/* SUGGESTED QUICK QUESTIONS */}
             <div className="space-y-2">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                 Suggested Questions
               </span>
               <div className="flex flex-wrap gap-2">
@@ -688,7 +717,7 @@ Summary: ${result.summary}`;
                 <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700/80 space-y-2">
                   <Bot size={32} className="mx-auto text-pink-600 dark:text-pink-400 opacity-80" />
                   <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No questions asked yet</p>
-                  <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
                     Type a question below or tap any suggested question above to get instant AI answers about {result.productName}.
                   </p>
                 </div>
@@ -782,14 +811,14 @@ Summary: ${result.summary}`;
       {activeTab === 'proscons' && (
         <div className="space-y-6">
           {/* Header Banner for Pros & Cons */}
-          <div className="bg-white dark:bg-black rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <ShieldCheck size={18} className="text-pink-600" />
                   <span>Aggregated Review Sentiment & Insights</span>
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   AI-generated summary. Not based on counted customer reviews.
                 </p>
               </div>
@@ -819,7 +848,7 @@ Summary: ${result.summary}`;
 
                 <div className="space-y-3">
                   {result.pros.map((pro, idx) => (
-                    <div key={idx} className="p-3 bg-white dark:bg-black/90 rounded-xl border border-emerald-100 dark:border-emerald-900/40 shadow-xs flex items-start gap-3">
+                    <div key={idx} className="p-3 bg-white dark:bg-slate-900/90 rounded-xl border border-emerald-100 dark:border-emerald-900/40 shadow-xs flex items-start gap-3">
                       <span className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
                         ✓
                       </span>
@@ -845,7 +874,7 @@ Summary: ${result.summary}`;
 
                 <div className="space-y-3">
                   {result.cons.map((con, idx) => (
-                    <div key={idx} className="p-3 bg-white dark:bg-black/90 rounded-xl border border-rose-100 dark:border-rose-900/40 shadow-xs flex items-start gap-3">
+                    <div key={idx} className="p-3 bg-white dark:bg-slate-900/90 rounded-xl border border-rose-100 dark:border-rose-900/40 shadow-xs flex items-start gap-3">
                       <span className="w-5 h-5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-400 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
                         ✕
                       </span>
@@ -863,7 +892,7 @@ Summary: ${result.summary}`;
 
       {/* TAB CONTENT: STORE PRICES */}
       {activeTab === 'prices' && (
-        <div className="bg-white dark:bg-black rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-4">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <TrendingDown size={18} className="text-pink-600" />
@@ -890,7 +919,7 @@ Summary: ${result.summary}`;
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px] text-slate-400 font-medium">
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                     {item.inStock ? 'In Stock' : 'Out of Stock / Backorder'}
                   </span>
                 </div>
@@ -915,7 +944,7 @@ Summary: ${result.summary}`;
           </div>
 
           {hasAffiliateIds() && (
-            <p className="mt-3 text-[10px] text-slate-400 leading-snug">
+            <p className="mt-3 text-[10px] text-slate-500 dark:text-slate-400 leading-snug">
               {getAffiliateConfig().amazonTag && result.priceComparison.some((i) => isAmazonLink(i.url))
                 ? 'As an Amazon Associate I earn from qualifying purchases. '
                 : ''}
@@ -927,7 +956,7 @@ Summary: ${result.summary}`;
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
               <TrendingDown size={18} className="text-pink-600" />
               <span>Illustrative Price Trend</span>
-              <span className="text-[10px] font-semibold text-slate-400">(sample shape, not real price history)</span>
+              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">(sample shape, not real price history)</span>
             </h3>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -937,15 +966,15 @@ Summary: ${result.summary}`;
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={(val) => `$${val}`} />
                   <Tooltip
                     contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
-                    itemStyle={{ color: '#ec4899', fontWeight: 'bold' }}
+                    itemStyle={{ color: '#6366f1', fontWeight: 'bold' }}
                     formatter={(value: number) => [formatCurrency(value), 'Price']}
                   />
                   <Line
                     type="monotone"
                     dataKey="price"
-                    stroke="#ec4899"
+                    stroke="#6366f1"
                     strokeWidth={3}
-                    dot={{ fill: '#ec4899', strokeWidth: 2, r: 4, stroke: '#fff' }}
+                    dot={{ fill: '#6366f1', strokeWidth: 2, r: 4, stroke: '#fff' }}
                     activeDot={{ r: 6, strokeWidth: 0 }}
                   />
                 </LineChart>
@@ -957,7 +986,7 @@ Summary: ${result.summary}`;
 
       {/* TAB CONTENT: LOCAL STORES */}
       {activeTab === 'localStores' && (
-        <div className="bg-white dark:bg-black rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-4">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <MapPin size={18} className="text-pink-600" />
@@ -1016,11 +1045,11 @@ Summary: ${result.summary}`;
 
       {/* TAB CONTENT: REVIEWS */}
       {activeTab === 'reviews' && (
-        <div className="bg-white dark:bg-black rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-4">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">Customer Reviews Highlight</h3>
-              <p className="text-xs text-slate-400">Real customer reviews live on the retailer sites.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Real customer reviews live on the retailer sites.</p>
             </div>
             {hasRating && (
               <div className="text-right">
@@ -1048,7 +1077,7 @@ Summary: ${result.summary}`;
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-xs text-slate-900 dark:text-white">{rev.author}</span>
-                    <span className="text-[10px] text-slate-400">• {rev.source}</span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">• {rev.source}</span>
                   </div>
                   <div className="flex items-center gap-0.5">
                     {Array.from({ length: 5 }).map((_, i) => (
@@ -1061,7 +1090,7 @@ Summary: ${result.summary}`;
                   </div>
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-300 italic">"{rev.comment}"</p>
-                <span className="text-[10px] text-slate-400 block text-right">{rev.date}</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 block text-right">{rev.date}</span>
               </div>
             ))}
           </div>
@@ -1070,7 +1099,7 @@ Summary: ${result.summary}`;
 
       {/* TAB CONTENT: KEY SPECS */}
       {activeTab === 'specs' && (
-        <div className="bg-white dark:bg-black rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-4">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 space-y-4">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <Layers size={18} className="text-pink-600" />
             <span>Key Specifications</span>
@@ -1079,7 +1108,7 @@ Summary: ${result.summary}`;
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {result.keySpecs.map((spec, idx) => (
               <div key={idx} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">{spec.label}</span>
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">{spec.label}</span>
                 <span className="text-xs font-bold text-slate-900 dark:text-white mt-1 block">{spec.value}</span>
               </div>
             ))}
@@ -1110,7 +1139,7 @@ Summary: ${result.summary}`;
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-md bg-white dark:bg-black rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800"
+              className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800"
             >
               <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -1139,13 +1168,13 @@ Summary: ${result.summary}`;
                           <img src={capturedImageUrl} alt="Product" className="w-full h-full object-cover" />
                         </div>
                       ) : (
-                        <div className="w-16 h-16 rounded-xl bg-pink-900/30 text-pink-500 flex items-center justify-center shrink-0 border border-pink-800/30">
+                        <div className="w-16 h-16 rounded-xl bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-500 flex items-center justify-center shrink-0 border border-pink-200 dark:border-pink-800/30">
                           <Tag size={24} />
                         </div>
                       )}
                       
                       <div className="space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-pink-400 bg-pink-950/50 px-2 py-0.5 rounded-full border border-pink-900/50">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-pink-700 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/50 px-2 py-0.5 rounded-full border border-pink-200 dark:border-pink-900/50">
                           {result.brand}
                         </span>
                         <h4 className="font-bold text-white leading-tight line-clamp-2">
@@ -1156,11 +1185,11 @@ Summary: ${result.summary}`;
                     
                     <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800/60">
                       <div>
-                        <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">Target Price</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider block">Target Price</span>
                         <span className="font-bold text-emerald-400 text-lg">{formatCurrency(result.goodPrice)}</span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">MSRP</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider block">MSRP</span>
                         <span className="font-bold text-slate-300 text-lg line-through">{formatCurrency(result.msrp)}</span>
                       </div>
                     </div>

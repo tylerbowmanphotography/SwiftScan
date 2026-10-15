@@ -73,13 +73,13 @@ export const ReportIncorrectScanModal: React.FC<ReportIncorrectScanModalProps> =
               </div>
               <div>
                 <h3 className="font-extrabold text-base text-white">Report Incorrect Scan</h3>
-                <p className="text-[11px] font-medium text-slate-400">Help us fix or re-analyze this product</p>
+                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Help us fix or re-analyze this product</p>
               </div>
             </div>
             <button
               onClick={onClose}
               type="button"
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
             >
               <X size={18} />
             </button>
@@ -96,7 +96,7 @@ export const ReportIncorrectScanModal: React.FC<ReportIncorrectScanModalProps> =
                   className="w-14 h-14 rounded-xl object-cover shrink-0 border border-slate-800"
                 />
               ) : (
-                <div className="w-14 h-14 rounded-xl bg-slate-800 text-slate-400 flex items-center justify-center shrink-0">
+                <div className="w-14 h-14 rounded-xl bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center shrink-0">
                   <Flag size={20} />
                 </div>
               )}
@@ -108,7 +108,7 @@ export const ReportIncorrectScanModal: React.FC<ReportIncorrectScanModalProps> =
                   {currentProductName}
                 </h4>
                 {currentBrand && (
-                  <p className="text-[11px] text-slate-400 truncate">Brand: {currentBrand}</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Brand: {currentBrand}</p>
                 )}
               </div>
             </div>
@@ -182,7 +182,7 @@ export const ReportIncorrectScanModal: React.FC<ReportIncorrectScanModalProps> =
                       className={`px-3 py-2 rounded-xl text-left border transition-all ${
                         reason === item.id
                           ? 'bg-pink-950/80 border-pink-700 text-pink-300 font-bold'
-                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                          : 'bg-slate-950 border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-200'
                       }`}
                     >
                       {item.label}
@@ -213,7 +213,7 @@ export const ReportIncorrectScanModal: React.FC<ReportIncorrectScanModalProps> =
                 <button
                   type="submit"
                   disabled={!correctNameInput.trim()}
-                  className="w-full py-3.5 bg-gradient-to-r from-pink-600 via-rose-500 to-pink-500 hover:from-pink-500 hover:to-rose-600 disabled:opacity-50 text-white font-black text-xs rounded-2xl shadow-lg shadow-pink-600/20 flex items-center justify-center gap-2 transition-all active:scale-98"
+                  className="w-full py-3.5 bg-gradient-to-r from-pink-600 to-pink-700 hover:from-pink-500 hover:to-pink-600 disabled:opacity-50 text-white font-black text-xs rounded-2xl shadow-lg shadow-pink-600/20 flex items-center justify-center gap-2 transition-all active:scale-98"
                 >
                   <Sparkles size={16} />
                   <span>Submit Correction & Re-Analyze Item</span>
