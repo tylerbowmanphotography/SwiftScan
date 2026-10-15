@@ -29,6 +29,21 @@ export interface HistoricalPriceRange {
   highestPrice: number;
 }
 
+export interface ProductIdentification {
+  /** How the product was identified. Only 'database' is a verified match. */
+  method: 'database' | 'photo' | 'search' | 'correction';
+  verified: boolean;
+  source?: string;
+  upc?: string;
+  imageUrl?: string;
+}
+
+export interface UnidentifiedBarcode {
+  barcode: string;
+  message: string;
+  lookupIncomplete?: boolean;
+}
+
 export interface ProductScanResult {
   productName: string;
   brand: string;
@@ -40,9 +55,12 @@ export interface ProductScanResult {
   greatDealPrice: number;
   priceRating: PriceRating;
   priceAdvice: string;
-  rating: number;
-  totalReviewsCount: number;
-  reviewSentiment: ReviewSentiment;
+  /** Only present when backed by a real source; the app has none yet, so normally omitted. */
+  rating?: number;
+  totalReviewsCount?: number;
+  reviewSentiment?: ReviewSentiment;
+  identification?: ProductIdentification;
+  pricesAreEstimates?: boolean;
   pros: string[];
   cons: string[];
   keySpecs: KeySpec[];

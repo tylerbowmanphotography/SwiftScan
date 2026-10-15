@@ -28,7 +28,7 @@ import { ProductResultView } from './components/ProductResultView';
 import { ScanHistoryDrawer } from './components/ScanHistoryDrawer';
 import { ManualSearchModal } from './components/ManualSearchModal';
 
-import { ProductScanResult, SavedScanItem, SampleProductPreset } from './types';
+import { ProductScanResult, SavedScanItem, SampleProductPreset, UnidentifiedBarcode } from './types';
 import { SAMPLE_PRESETS } from './data/samplePresets';
 import {
   validateAndOptimizeImage,
@@ -47,6 +47,7 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [currentScanResult, setCurrentScanResult] = useState<ProductScanResult | null>(null);
+  const [unidentified, setUnidentified] = useState<UnidentifiedBarcode | null>(null);
   const [lastCapturedImage, setLastCapturedImage] = useState<string | undefined>(undefined);
 
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -153,6 +154,7 @@ export default function App() {
 
       // 4. Success State
       setCurrentScanResult(data.data);
+      setUnidentified(null);
       addToHistory(data.data, 'camera', optimized.base64Data);
       setIsScannerOpen(false);
     } catch (err: any) {
@@ -210,6 +212,7 @@ export default function App() {
       }
 
       setCurrentScanResult(data.data);
+      setUnidentified(null);
       addToHistory(data.data, 'search');
       setIsSearchOpen(false);
       setIsScannerOpen(false);
@@ -229,6 +232,7 @@ export default function App() {
   const handleScanBarcode = async (barcode: string) => {
     setIsLoading(true);
     setErrorMessage(null);
+    setUnidentified(null);
     setLastCapturedImage(undefined);
 
     try {
@@ -245,15 +249,19 @@ export default function App() {
       // 3. Response Handling
       if (!res.ok) {
         let serverErrorMsg = '';
+        let errorCode = '';
         try {
           const errorJson = await res.json();
           serverErrorMsg = errorJson.error || errorJson.message || '';
+          errorCode = errorJson.code || '';
         } catch {
           const rawText = await res.text().catch(() => '');
           serverErrorMsg = rawText.length < 200 ? rawText : '';
         }
 
-        if (serverErrorMsg) {
+        if (serverErrorMsg && errorCode === 'BARCODE_MISREAD') {
+          throw new Error(serverErrorMsg);
+        } else if (serverErrorMsg) {
           throw new Error(`Barcode Lookup Error (${res.status}): ${serverErrorMsg}`);
         } else if (res.status === 404) {
           throw new Error('Barcode Lookup Error (404): The /api/scan endpoint was not found.');
@@ -263,11 +271,23 @@ export default function App() {
       }
 
       const data = await res.json();
+      if (data.success && data.found === false) {
+        // Real lookup found nothing: do NOT show a guessed product.
+        setCurrentScanResult(null);
+        setUnidentified({
+          barcode: data.barcode || cleanCode,
+          message: data.message || "We couldn't identify this barcode.",
+          lookupIncomplete: !!data.lookupIncomplete,
+        });
+        setIsScannerOpen(false);
+        return;
+      }
       if (!data.success || !data.data) {
         throw new Error(data.error || `Barcode ${cleanCode} could not be resolved.`);
       }
 
       setCurrentScanResult(data.data);
+      setUnidentified(null);
       addToHistory(data.data, 'barcode');
       setIsScannerOpen(false);
     } catch (err: any) {
@@ -302,6 +322,7 @@ export default function App() {
       }
 
       setCurrentScanResult(data.data);
+      setUnidentified(null);
       addToHistory(data.data, 'preset', preset.imageUrl);
     } catch (err: any) {
       setErrorMessage(err?.message || 'Preset scan failed.');
@@ -338,6 +359,7 @@ export default function App() {
       }
 
       setCurrentScanResult(data.data);
+      setUnidentified(null);
       addToHistory(data.data, 'search', lastCapturedImage);
     } catch (err: any) {
       console.error('Correction error:', err);
@@ -458,6 +480,50 @@ export default function App() {
           </motion.div>
         )}
 
+        {/* Barcode not found in any real database: never show a guessed product */}
+        {unidentified && !isLoading && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 rounded-3xl space-y-3 shadow-xl"
+          >
+            <div className="flex items-start gap-3">
+              <AlertCircle size={22} className="shrink-0 text-amber-500 mt-0.5" />
+              <div className="space-y-1">
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">We couldn't identify this barcode</h3>
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  Barcode <span className="font-mono font-bold">{unidentified.barcode}</span> isn't in the product databases we check, so we won't guess. {unidentified.lookupIncomplete ? 'Some databases were unavailable, so trying again in a minute may help. ' : ''}Take a photo of the front of the product, or search by name.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => { setUnidentified(null); setIsScannerOpen(true); }}
+                className="px-4 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold flex items-center gap-1.5"
+              >
+                <Camera size={14} />
+                <span>Take a photo of the product front</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setUnidentified(null); setIsSearchOpen(true); }}
+                className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-bold flex items-center gap-1.5"
+              >
+                <Search size={14} />
+                <span>Search by name</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setUnidentified(null)}
+                className="px-4 py-2 rounded-xl text-slate-500 dark:text-slate-400 text-xs font-bold underline"
+              >
+                Dismiss
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         {/* Global Loading Overlay */}
         {isLoading && (
           <div className="bg-white dark:bg-slate-900/90 rounded-3xl p-10 border border-slate-200 dark:border-slate-800 text-center shadow-2xl space-y-5 backdrop-blur-xl">
@@ -469,7 +535,7 @@ export default function App() {
             <div className="space-y-1.5">
               <h3 className="text-lg font-black text-slate-900 dark:text-white">Analyzing Product & Market Pricing...</h3>
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                Gathering MSRP benchmarks, verified reviews consensus, and current store comparisons across Amazon, Best Buy, Walmart, and Target.
+                Looking up the product and estimating prices. Estimates are not live store prices.
               </p>
             </div>
           </div>

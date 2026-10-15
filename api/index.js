@@ -74,139 +74,160 @@ app.get(["/api/health", "/api/health/"], (req, res) => {
     timestamp: (/* @__PURE__ */ new Date()).toISOString()
   });
 });
-var KNOWN_BARCODES = {
-  "019283746501": { name: "Uniqlo AIRism Cotton Crew Neck T-Shirt", brand: "Uniqlo", category: "Apparel & Clothing" },
-  "088341234567": { name: "Nike Sportswear Club Fleece T-Shirt", brand: "Nike", category: "Apparel & Activewear" },
-  "012345678905": { name: "Gildan Heavy Cotton Adult T-Shirt (2-Pack)", brand: "Gildan", category: "Apparel & Basics" },
-  "0735005385001": { name: "Organic Heavyweight Cotton Crewneck Tee", brand: "Studio Apparel", category: "Apparel & Clothing" },
-  "024721000000": { name: "Levi's Men's 501 Original Fit Jeans", brand: "Levi's", category: "Apparel & Clothing" },
-  "049000006346": { name: "Coca-Cola Original Taste (12 fl oz Can)", brand: "Coca-Cola", category: "Beverages" },
-  "3017620422003": { name: "Nutella Hazelnut Spread with Cocoa (13 oz)", brand: "Nutella", category: "Grocery" },
-  "027242922112": { name: "Sony WH-1000XM5 Wireless Noise Cancelling Headphones", brand: "Sony", category: "Headphones & Audio" },
-  "194252192008": { name: "Apple AirPods Pro (2nd Generation)", brand: "Apple", category: "Earbuds & Audio" },
-  "9780131103627": { name: "The C Programming Language (2nd Edition)", brand: "Prentice Hall", category: "Books" },
-  "09780131103627": { name: "The C Programming Language (2nd Edition)", brand: "Prentice Hall", category: "Books" },
-  "045496881857": { name: "Nintendo Switch - OLED Model White Joy-Con", brand: "Nintendo", category: "Video Games" },
-  "097855171122": { name: "Logitech MX Master 3S Performance Wireless Mouse", brand: "Logitech", category: "Computer Accessories" },
-  "012000000133": { name: "Pepsi Cola (12 fl oz Can)", brand: "Pepsi", category: "Beverages" },
-  "194253399086": { name: "Apple Watch Series 9 GPS 45mm Midnight Aluminum", brand: "Apple", category: "Smartwatches" },
-  "888462000000": { name: "Nike Air Force 1 '07 Triple White", brand: "Nike", category: "Footwear" },
-  "045496590421": { name: "The Legend of Zelda: Tears of the Kingdom", brand: "Nintendo", category: "Video Games" },
-  "850012345678": { name: "Hydro Flask 32 oz Wide Mouth Straw Lid Water Bottle", brand: "Hydro Flask", category: "Drinkware" },
-  "840080588880": { name: "Anker 737 Power Bank (PowerCore 24K 140W Output)", brand: "Anker", category: "Mobile Accessories" },
-  "810082340001": { name: "Stanley 40 oz Stainless Steel Quencher H2.0 Tumbler", brand: "Stanley", category: "Drinkware" },
-  "088590995080": { name: "Bose QuietComfort 45 Bluetooth Headphones", brand: "Bose", category: "Headphones & Audio" },
-  "880609000000": { name: "Samsung Galaxy Buds2 Pro True Wireless Earbuds", brand: "Samsung", category: "Audio" },
-  "050036323000": { name: "JBL Flip 6 Waterproof Portable Bluetooth Speaker", brand: "JBL", category: "Audio" },
-  "085854200000": { name: "Instant Pot Duo 7-in-1 Electric Pressure Cooker 6 Qt", brand: "Instant Pot", category: "Kitchen Appliances" }
-};
-async function resolveBarcodeToProduct(rawCode) {
-  const code = rawCode.trim().replace(/[^0-9X]/gi, "");
-  if (!code) return null;
-  if (KNOWN_BARCODES[code]) {
-    return { ...KNOWN_BARCODES[code], source: "KnownBarcodes" };
+function isValidGtin(code) {
+  if (!/^\d+$/.test(code) || ![8, 12, 13, 14].includes(code.length)) return false;
+  const digits = code.split("").map(Number);
+  const check = digits.pop();
+  let sum = 0;
+  for (let i = digits.length - 1, w = 3; i >= 0; i--, w = w === 3 ? 1 : 3) {
+    sum += digits[i] * w;
   }
-  const unpadded = code.replace(/^0+/, "");
-  if (KNOWN_BARCODES[unpadded]) {
-    return { ...KNOWN_BARCODES[unpadded], source: "KnownBarcodes" };
-  }
-  try {
-    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json`, {
-      signal: AbortSignal.timeout(2e3)
-    });
-    const data = await res.json();
-    if (data.status === 1 && data.product) {
-      const p = data.product;
-      const name = p.product_name || p.product_name_en;
-      const brand = p.brands || p.brand_owner || "";
-      if (name) {
-        const fullTitle = brand && !name.toLowerCase().includes(brand.toLowerCase()) ? `${brand} ${name}` : name;
-        return { name: fullTitle, brand, category: p.categories || "Food & Grocery", source: "OpenFoodFacts" };
-      }
-    }
-  } catch (e) {
-  }
-  if (code.length === 10 || code.length === 13) {
-    try {
-      const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${code}&format=json&jscmd=data`, {
-        signal: AbortSignal.timeout(2e3)
-      });
-      const data = await res.json();
-      const bookKey = `ISBN:${code}`;
-      if (data[bookKey] && data[bookKey].title) {
-        const b = data[bookKey];
-        const author = b.authors?.[0]?.name || "";
-        return { name: `Book: ${b.title} ${author ? "by " + author : ""}`.trim(), brand: author || "Publisher", category: "Books", source: "OpenLibrary" };
-      }
-    } catch (e) {
-    }
-  }
-  try {
-    const res = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${code}`, {
-      signal: AbortSignal.timeout(2e3)
-    });
-    const data = await res.json();
-    if (data.items && data.items.length > 0) {
-      const item = data.items[0];
-      if (item.title) {
-        return { name: item.title, brand: item.brand || "", category: item.category || "", source: "UPCitemdb" };
-      }
-    }
-  } catch (e) {
-  }
-  try {
-    const barcodePrompt = `Find the exact product name, brand, and category for UPC/EAN barcode ${code}. Return JSON object with keys: name, brand, category. If you do not know this exact barcode, return {"name": "unknown"} - never guess. Example: {"name": "Logitech MX Master 3S", "brand": "Logitech", "category": "Computer Accessories"}`;
-    const text = await generateWithFallback({
-      contents: barcodePrompt,
-      config: { responseMimeType: "application/json" }
-    });
-    if (text) {
-      const parsed = JSON.parse(text);
-      if (parsed.name && !parsed.name.toLowerCase().includes("unknown")) {
-        return { name: parsed.name, brand: parsed.brand || "", category: parsed.category || "General Retail", source: "GeminiUPC" };
-      }
-    }
-  } catch (e) {
-  }
-  return null;
+  return (10 - sum % 10) % 10 === check;
 }
-function normalizeProductScanResult(raw, fallbackQuery, rawBarcode) {
-  if (!raw || typeof raw !== "object") {
-    return generateSmartFallbackProduct(fallbackQuery, rawBarcode);
+function isValidIsbn10(code) {
+  if (!/^\d{9}[\dXx]$/.test(code)) return false;
+  let sum = 0;
+  for (let i = 0; i < 10; i++) {
+    const c = code[i];
+    sum += (c === "X" || c === "x" ? 10 : Number(c)) * (10 - i);
   }
-  const name = String(raw.productName || raw.name || fallbackQuery || "Scanned Product").trim();
-  const brand = String(raw.brand || "Retail Brand").trim();
-  const category = String(raw.category || "General Retail").trim();
+  return sum % 11 === 0;
+}
+function isbn10To13(code) {
+  const body = "978" + code.slice(0, 9);
+  let sum = 0;
+  for (let i = 0; i < 12; i++) sum += Number(body[i]) * (i % 2 === 0 ? 1 : 3);
+  return body + (10 - sum % 10) % 10;
+}
+function normalizeBarcode(raw) {
+  let code = String(raw || "").replace(/[\s-]/g, "");
+  if (isValidIsbn10(code)) code = isbn10To13(code.toUpperCase());
+  if (!isValidGtin(code)) {
+    return { ok: false, reason: "invalid" };
+  }
+  const variants = [];
+  const add = (c) => {
+    if (c && !variants.includes(c)) variants.push(c);
+  };
+  const stripped = code.replace(/^0+/, "");
+  add(code);
+  if (stripped.length <= 12) add(stripped.padStart(12, "0"));
+  if (stripped.length <= 13) add(stripped.padStart(13, "0"));
+  if (stripped.length <= 14) add(stripped.padStart(14, "0"));
+  if (code.length === 14 && code.startsWith("0")) add(code.slice(1));
+  const sorted = variants.filter((v) => [12, 13].includes(v.length) || v === code);
+  return { ok: true, code, variants: sorted.length ? sorted : variants };
+}
+var LOOKUP_UA = "SwiftScan/1.0 (https://scan-app-seven.vercel.app)";
+var LOOKUP_TIMEOUT_MS = 3500;
+async function fetchJson(url) {
+  const res = await fetch(url, {
+    headers: { "User-Agent": LOOKUP_UA, Accept: "application/json" },
+    signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS)
+  });
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`HTTP ${res.status}: non-JSON response`);
+  }
+  if (!res.ok && res.status !== 404 && !data?.status_verbose) {
+    throw new Error(`HTTP ${res.status}${data?.code ? " " + data.code : ""}`);
+  }
+  return data;
+}
+async function lookupOpenFactsFamily(host, label, code) {
+  const data = await fetchJson(`https://${host}/api/v2/product/${code}.json?fields=code,product_name,product_name_en,generic_name,brands,brand_owner,categories,quantity,image_front_url,image_url`);
+  if (data?.status !== 1 || !data.product) return null;
+  const p = data.product;
+  const baseName = String(p.product_name || p.product_name_en || p.generic_name || "").trim();
+  if (!baseName) return null;
+  const brand = String(p.brands || p.brand_owner || "").split(",")[0].trim();
+  let name = brand && !baseName.toLowerCase().includes(brand.toLowerCase()) ? `${brand} ${baseName}` : baseName;
+  if (p.quantity && !name.toLowerCase().includes(String(p.quantity).toLowerCase())) name += ` (${p.quantity})`;
+  const category = String(p.categories || "").split(",").map((s) => s.trim()).filter(Boolean).pop() || "";
+  return { name, brand, category, imageUrl: p.image_front_url || p.image_url || void 0, source: label };
+}
+async function lookupOpenLibrary(code) {
+  if (!/^97[89]\d{10}$/.test(code)) return null;
+  const data = await fetchJson(`https://openlibrary.org/api/books?bibkeys=ISBN:${code}&format=json&jscmd=data`);
+  const b = data?.[`ISBN:${code}`];
+  if (!b?.title) return null;
+  const author = b.authors?.[0]?.name || "";
+  return {
+    name: `${b.title}${author ? " by " + author : ""}`,
+    brand: author || b.publishers?.[0]?.name || "",
+    category: "Books",
+    imageUrl: b.cover?.medium || b.cover?.large || void 0,
+    source: "Open Library"
+  };
+}
+async function lookupUpcItemDb(code) {
+  const data = await fetchJson(`https://api.upcitemdb.com/prod/trial/lookup?upc=${code}`);
+  if (data?.code && data.code !== "OK") {
+    if (data.code === "INVALID_UPC" || data.code === "NOT_FOUND") return null;
+    throw new Error(`UPCitemdb ${data.code}`);
+  }
+  const item = data?.items?.[0];
+  if (!item?.title) return null;
+  return {
+    name: String(item.title).trim(),
+    brand: item.brand || "",
+    category: item.category || "",
+    imageUrl: Array.isArray(item.images) && item.images[0] ? item.images[0] : void 0,
+    source: "UPCitemdb"
+  };
+}
+async function lookupBarcode(variants) {
+  const errors = [];
+  const sources = [
+    { label: "Open Food Facts", run: (c) => lookupOpenFactsFamily("world.openfoodfacts.org", "Open Food Facts", c) },
+    { label: "Open Beauty Facts", run: (c) => lookupOpenFactsFamily("world.openbeautyfacts.org", "Open Beauty Facts", c) },
+    { label: "Open Products Facts", run: (c) => lookupOpenFactsFamily("world.openproductsfacts.org", "Open Products Facts", c) },
+    { label: "Open Library", run: lookupOpenLibrary },
+    { label: "UPCitemdb", run: lookupUpcItemDb }
+  ];
+  const runSource = async (source) => {
+    const tryVariants = source.label === "UPCitemdb" ? variants.slice(0, 2) : variants.slice(0, 1);
+    for (const v of tryVariants) {
+      try {
+        const hit = await source.run(v);
+        if (hit) return hit;
+      } catch (e) {
+        errors.push(`${source.label}: ${String(e?.message || e).slice(0, 120)}`);
+        console.warn(`Barcode lookup via ${source.label} failed for ${v}:`, e?.message || e);
+        break;
+      }
+    }
+    return null;
+  };
+  const openFacts = await Promise.all(sources.slice(0, 3).map(runSource));
+  const openHit = openFacts.find((h) => !!h);
+  if (openHit) return { product: openHit, incomplete: errors.length > 0, errors };
+  for (const source of sources.slice(3)) {
+    const hit = await runSource(source);
+    if (hit) return { product: hit, incomplete: errors.length > 0, errors };
+  }
+  return { product: null, incomplete: errors.length > 0, errors };
+}
+function normalizeProductScanResult(raw, fallbackQuery, identification, groundTruth) {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("AI response was not a product object");
+  }
+  const name = String(groundTruth?.name || raw.productName || raw.name || fallbackQuery || "Scanned Product").trim();
+  const brand = String(groundTruth?.brand || raw.brand || "Unknown brand").trim();
+  const category = String(groundTruth?.category || raw.category || "General Retail").trim();
   const msrp = typeof raw.msrp === "number" && !isNaN(raw.msrp) ? raw.msrp : parseFloat(raw.msrp) || 29.99;
   const goodPrice = typeof raw.goodPrice === "number" && !isNaN(raw.goodPrice) ? raw.goodPrice : parseFloat(raw.goodPrice) || msrp * 0.85;
   const greatDealPrice = typeof raw.greatDealPrice === "number" && !isNaN(raw.greatDealPrice) ? raw.greatDealPrice : parseFloat(raw.greatDealPrice) || msrp * 0.7;
-  const rating = typeof raw.rating === "number" && !isNaN(raw.rating) ? Math.min(5, Math.max(1, raw.rating)) : parseFloat(raw.rating) || 4.5;
-  const totalReviewsCount = typeof raw.totalReviewsCount === "number" && !isNaN(raw.totalReviewsCount) ? raw.totalReviewsCount : parseInt(raw.totalReviewsCount, 10) || 1250;
   const validRatings = ["STEAL", "GOOD_DEAL", "FAIR", "OVERPRICED"];
   const priceRating = validRatings.includes(raw.priceRating) ? raw.priceRating : goodPrice < msrp * 0.8 ? "GOOD_DEAL" : "FAIR";
-  const validSentiments = ["OVERWHELMINGLY_POSITIVE", "MOSTLY_POSITIVE", "MIXED", "NEGATIVE"];
-  const reviewSentiment = validSentiments.includes(raw.reviewSentiment) ? raw.reviewSentiment : "MOSTLY_POSITIVE";
-  const pros = Array.isArray(raw.pros) && raw.pros.length > 0 ? raw.pros.map((p) => String(p)) : ["High quality design and reliable construction", "Strong ratings from verified owners"];
-  const cons = Array.isArray(raw.cons) && raw.cons.length > 0 ? raw.cons.map((c) => String(c)) : ["May have price variations depending on retailer stock"];
+  const pros = Array.isArray(raw.pros) ? raw.pros.map((p) => String(p)).filter(Boolean) : [];
+  const cons = Array.isArray(raw.cons) ? raw.cons.map((c) => String(c)).filter(Boolean) : [];
   const keySpecs = Array.isArray(raw.keySpecs) && raw.keySpecs.length > 0 ? raw.keySpecs.map((s) => ({ label: String(s.label || "Specification"), value: String(s.value || "Standard") })) : [
     { label: "Category", value: category },
-    { label: "Manufacturer", value: brand },
-    { label: "Warranty", value: "Standard 1-Year Limited Warranty" }
-  ];
-  const topReviews = Array.isArray(raw.topReviews) && raw.topReviews.length > 0 ? raw.topReviews.map((r) => ({
-    author: String(r.author || "Verified Buyer"),
-    source: String(r.source || "Retail Buyer"),
-    rating: typeof r.rating === "number" ? r.rating : 5,
-    comment: String(r.comment || "Great product, highly satisfied with this purchase."),
-    date: String(r.date || "Recent")
-  })) : [
-    {
-      author: "Verified Customer",
-      source: "Verified Buyer",
-      rating: 5,
-      comment: `Very happy with the ${name}. Works exactly as expected.`,
-      date: "1 week ago"
-    }
+    { label: "Brand", value: brand }
   ];
   const priceComparison = Array.isArray(raw.priceComparison) && raw.priceComparison.length > 0 ? raw.priceComparison.map((p) => ({
     retailer: String(p.retailer || "Online Retailer"),
@@ -214,61 +235,48 @@ function normalizeProductScanResult(raw, fallbackQuery, rawBarcode) {
     inStock: p.inStock !== false,
     dealTag: p.dealTag ? String(p.dealTag) : void 0,
     url: p.url ? String(p.url) : `https://www.google.com/search?q=${encodeURIComponent(name + " " + (p.retailer || "buy"))}`
-  })) : [
-    {
-      retailer: "Amazon",
-      price: goodPrice,
-      inStock: true,
-      dealTag: "Current Best Price",
-      url: `https://www.amazon.com/s?k=${encodeURIComponent(name)}`
-    },
-    {
-      retailer: "Best Buy",
-      price: msrp,
-      inStock: true,
-      dealTag: "Standard Retail",
-      url: `https://www.bestbuy.com/site/searchpage.jsp?st=${encodeURIComponent(name)}`
-    },
-    {
-      retailer: "Walmart",
-      price: Number((goodPrice * 1.02).toFixed(2)),
-      inStock: true,
-      dealTag: "Rollback Match",
-      url: `https://www.walmart.com/search?q=${encodeURIComponent(name)}`
-    }
-  ];
+  })) : retailerSearchLinks(name, goodPrice, msrp);
   const historicalPriceRange = raw.historicalPriceRange && typeof raw.historicalPriceRange === "object" ? {
     lowestEver: typeof raw.historicalPriceRange.lowestEver === "number" ? raw.historicalPriceRange.lowestEver : greatDealPrice,
     averagePrice: typeof raw.historicalPriceRange.averagePrice === "number" ? raw.historicalPriceRange.averagePrice : goodPrice,
     highestPrice: typeof raw.historicalPriceRange.highestPrice === "number" ? raw.historicalPriceRange.highestPrice : msrp
-  } : {
-    lowestEver: greatDealPrice,
-    averagePrice: goodPrice,
-    highestPrice: msrp
-  };
+  } : { lowestEver: greatDealPrice, averagePrice: goodPrice, highestPrice: msrp };
+  let confidence;
+  if (identification.method === "photo") {
+    const c = typeof raw.confidence === "number" && !isNaN(raw.confidence) ? raw.confidence : 0.5;
+    confidence = Math.min(0.7, Math.max(0.1, c > 1 ? c / 100 : c));
+  }
+  const finalIdentification = { ...identification };
+  if (groundTruth?.imageUrl) finalIdentification.imageUrl = groundTruth.imageUrl;
   return {
     productName: name,
     brand,
     category,
-    confidence: typeof raw.confidence === "number" ? raw.confidence : 0.94,
-    summary: String(raw.summary || `${name} by ${brand} is a well-rated option in ${category}.`),
-    geminiDescription: String(raw.geminiDescription || raw.summary || `Comprehensive analysis for ${name}.`),
+    confidence,
+    identification: finalIdentification,
+    pricesAreEstimates: true,
+    summary: String(raw.summary || `${name} (${brand}) in ${category}.`),
+    geminiDescription: String(raw.geminiDescription || raw.summary || `${name} (${brand}).`),
     msrp: Number(msrp.toFixed(2)),
     goodPrice: Number(goodPrice.toFixed(2)),
     greatDealPrice: Number(greatDealPrice.toFixed(2)),
     priceRating,
-    priceAdvice: String(raw.priceAdvice || (goodPrice < msrp ? "Current street prices are below MSRP. Good time to buy." : "Consider waiting for an upcoming promotional sale.")),
-    rating: Number(rating.toFixed(1)),
-    totalReviewsCount,
-    reviewSentiment,
+    priceAdvice: String(raw.priceAdvice || "Prices shown are AI estimates. Check the retailer links for current prices."),
     pros,
     cons,
     keySpecs,
-    topReviews,
+    topReviews: [],
     priceComparison,
     historicalPriceRange,
-    verdict: String(raw.verdict || `RECOMMENDED - Solid product choice in the ${category} category.`)
+    verdict: String(raw.verdict || "Price estimate only. Verify current prices at the retailer before buying.")
   };
+}
+function retailerSearchLinks(name, goodPrice, msrp) {
+  return [
+    { retailer: "Amazon", price: goodPrice, inStock: true, dealTag: "Estimate", url: `https://www.amazon.com/s?k=${encodeURIComponent(name)}` },
+    { retailer: "Walmart", price: msrp, inStock: true, dealTag: "Estimate", url: `https://www.walmart.com/search?q=${encodeURIComponent(name)}` },
+    { retailer: "Target", price: msrp, inStock: true, dealTag: "Estimate", url: `https://www.target.com/s?searchTerm=${encodeURIComponent(name)}` }
+  ];
 }
 function extractAndParseJSON(text) {
   if (!text) throw new Error("Empty AI response text");
@@ -322,85 +330,88 @@ app.post(["/api/scan", "/api/scan/"], async (req, res) => {
       });
     }
   }
-  const rawBarcode = barcode ? String(barcode).trim() : textQuery && /^\d{8,14}$/.test(textQuery.trim()) ? textQuery.trim() : null;
-  let resolvedBarcodeProduct = null;
-  if (rawBarcode) {
-    resolvedBarcodeProduct = await resolveBarcodeToProduct(rawBarcode);
-    if (resolvedBarcodeProduct) {
-      console.log(`Barcode '${rawBarcode}' resolved to:`, resolvedBarcodeProduct);
+  const rawBarcode = barcode ? String(barcode).trim() : textQuery && /^\d{8,14}$/.test(String(textQuery).trim()) ? String(textQuery).trim() : null;
+  const hasPhoto = !!imageBase64;
+  let groundTruth = null;
+  let normalizedCode = null;
+  if (rawBarcode && !hasPhoto && !correctionHint) {
+    const norm = normalizeBarcode(rawBarcode);
+    if (!norm.ok) {
+      return res.status(422).json({
+        success: false,
+        found: false,
+        code: "BARCODE_MISREAD",
+        barcode: rawBarcode,
+        error: "Barcode misread, try again. The digits we read (" + rawBarcode + ") don't pass the barcode check-digit test, so the scanner probably read it wrong. Hold the camera steady and re-scan, or type the number from under the barcode."
+      });
     }
+    normalizedCode = norm.code;
+    const outcome = await lookupBarcode(norm.variants);
+    if (!outcome.product) {
+      console.log(`Barcode ${norm.code} not found. Lookup issues: ${outcome.errors.join("; ") || "none"}`);
+      return res.json({
+        success: true,
+        found: false,
+        barcode: norm.code,
+        lookupIncomplete: outcome.incomplete,
+        message: outcome.incomplete ? "We couldn't identify this barcode. Some product databases were unavailable, so you can try again in a minute, or take a photo of the product front, or search by name." : "We couldn't identify this barcode. It isn't in the product databases we check. Take a photo of the product front or search by name instead."
+      });
+    }
+    groundTruth = outcome.product;
+    console.log(`Barcode '${norm.code}' found in ${groundTruth.source}:`, groundTruth.name);
   }
+  const method = correctionHint ? "correction" : hasPhoto ? "photo" : groundTruth ? "database" : "search";
+  const identification = {
+    method,
+    verified: method === "database",
+    source: groundTruth?.source,
+    upc: normalizedCode || void 0
+  };
   let promptInstruction = "";
   if (correctionHint) {
-    promptInstruction = `CRITICAL USER CORRECTION NOTICE: The user reported that the product in this scan is: '${correctionHint}'.
-Comprehensively analyze this exact product ('${correctionHint}') for its real MSRP, fair deal threshold, buyer reviews, specifications, pros, cons, and live retailer comparisons across major stores (Amazon, Best Buy, Walmart, Target, etc.).
-Ensure the returned productName is '${correctionHint}' or its official full model name.`;
-  } else if (imageBase64) {
+    promptInstruction = `The user says the product is: '${correctionHint}'.
+Analyze that exact product ('${correctionHint}'). Return productName as '${correctionHint}' or its official full model name.`;
+  } else if (hasPhoto) {
     promptInstruction = `EXAMINE THE PROVIDED PRODUCT PHOTO VERY CAREFULLY.
-Read all visible text, brand logos, model numbers, packaging details, tags, labels, or distinguishing visual features.
-Identify the EXACT, SPECIFIC product shown in the photo. State its full official name, brand, category, real MSRP, current street price, pros, cons, key specifications, and retailer price comparisons across major stores (Amazon, Best Buy, Walmart, Target, etc.).
-Do NOT make up a generic guess or default to a t-shirt unless the photo actually shows a t-shirt.`;
-  } else if (resolvedBarcodeProduct) {
-    promptInstruction = `Analyze the product corresponding to scanned UPC/EAN barcode ${rawBarcode}: '${resolvedBarcodeProduct.name}' by ${resolvedBarcodeProduct.brand || "manufacturer"} (${resolvedBarcodeProduct.category || "Retail Item"}).
-Provide full pricing analysis, MSRP, fair deal threshold, real buyer review sentiment, specifications, and retailer comparisons across major stores.`;
-  } else if (rawBarcode) {
-    promptInstruction = `Analyze product corresponding to scanned UPC/EAN barcode '${rawBarcode}'. Search online databases and identify the exact product model, brand, category, MSRP, deal pricing, and user review consensus.`;
+Read all visible text, brand logos, model numbers, packaging details, tags and labels.
+Identify the EXACT, SPECIFIC product shown. If you cannot read enough to be sure, say so in the summary and set a LOW confidence (below 0.5). Never invent a brand or model that is not visible.`;
+  } else if (groundTruth) {
+    promptInstruction = `The product has ALREADY been positively identified from the barcode database (${groundTruth.source}), UPC ${normalizedCode}:
+- Title: ${groundTruth.name}
+- Brand: ${groundTruth.brand || "(not listed)"}
+- Category: ${groundTruth.category || "(not listed)"}
+This identification is GROUND TRUTH. You MUST NOT change, rename, second-guess or substitute the product. Use the title above verbatim as productName. Use web search if available to find realistic current US pricing and a short summary for THIS product only.`;
   } else {
-    promptInstruction = `Analyze product search query: '${textQuery}'.
-Identify the exact product model, brand, category, official MSRP, fair deal price, real buyer review consensus, specifications, and retailer comparisons across major stores.`;
+    promptInstruction = `Analyze product search query: '${textQuery}'. Identify the most likely matching product, its official MSRP, a fair deal price, and typical retail prices.`;
   }
   const promptText = `${promptInstruction}
 
-Return a valid JSON object with this exact structure:
+Return ONLY a valid JSON object (no markdown) with this exact structure:
 {
   "productName": "Full Official Product Name",
   "brand": "Brand Name",
-  "category": "e.g. Apparel & Clothing / Headphones / Electronics / Grocery / Footwear / Home Goods / Books",
-  "confidence": 0.95,
-  "summary": "Clear 2-3 sentence summary of what this item is, key material/build/tech features, and who it's best for.",
+  "category": "e.g. Health & Medicine / Headphones / Grocery / Footwear / Books",
+  "confidence": 0.5,
+  "summary": "2-3 sentence factual summary of what this item is and who it is for.",
   "msrp": 29.99,
   "goodPrice": 24.99,
   "greatDealPrice": 19.99,
   "priceRating": "GOOD_DEAL",
-  "priceAdvice": "Advice on whether to buy now or wait for seasonal sales.",
-  "rating": 4.6,
-  "totalReviewsCount": 3850,
-  "reviewSentiment": "OVERWHELMINGLY_POSITIVE",
-  "pros": [
-    "High quality materials and durable craftsmanship",
-    "Great overall comfort, design, and value"
-  ],
-  "cons": [
-    "Slightly limited color variations in stock"
-  ],
-  "keySpecs": [
-    {"label": "Material / Type", "value": "Primary Material or Spec"}
-  ],
-  "topReviews": [
-    {
-      "author": "VerifiedBuyer_88",
-      "source": "Verified Buyer",
-      "rating": 5,
-      "comment": "Great product, fits well and holds up great after repeated use.",
-      "date": "2 weeks ago"
-    }
-  ],
+  "priceAdvice": "Short advice on buying now vs waiting. Say these are estimates.",
+  "pros": ["short pro"],
+  "cons": ["short con"],
+  "keySpecs": [{"label": "Size / Type", "value": "value"}],
   "priceComparison": [
-    {"retailer": "Retailer Name", "price": 24.99, "inStock": true, "dealTag": "Best current deal", "url": "https://www.retailer.com/search?q=product"}
+    {"retailer": "Retailer Name", "price": 24.99, "inStock": true, "dealTag": "Estimate", "url": "https://www.retailer.com/search?q=product"}
   ],
-  "historicalPriceRange": {
-    "lowestEver": 19.99,
-    "averagePrice": 26.99,
-    "highestPrice": 34.99
-  },
-  "verdict": "RECOMMENDED - Solid purchase at current pricing.",
-  "geminiDescription": "Detailed analysis explaining build quality, materials, engineering design, practical daily usability, and target buyers."
+  "historicalPriceRange": {"lowestEver": 19.99, "averagePrice": 26.99, "highestPrice": 34.99},
+  "verdict": "One-line buying verdict.",
+  "geminiDescription": "A few sentences of factual detail about the product."
 }
 
-Be realistic and accurate with real-world prices, real specifications, and authentic consumer sentiment matching the exact item type. Ensure values for msrp, goodPrice, and greatDealPrice are numbers.`;
-  const queryTerm = correctionHint || (resolvedBarcodeProduct ? resolvedBarcodeProduct.name : null) || textQuery || (rawBarcode ? `Barcode ${rawBarcode}` : "Scanned Item");
-  const hasRealName = !!(correctionHint || resolvedBarcodeProduct || textQuery && !rawBarcode);
-  if (!resolveGeminiKey().key && !hasRealName) {
+Rules: prices are USD numbers and are estimates; only include specs you are confident about. Do NOT include customer ratings, review counts or review quotes. If you are not sure about a value, leave it out rather than inventing it.`;
+  const queryTerm = correctionHint || groundTruth?.name || textQuery || "Scanned Item";
+  if (!resolveGeminiKey().key) {
     return res.status(503).json({
       success: false,
       error: "The scanning service is not configured: no Gemini API key is set on the server (GEMINI_API_KEY)."
@@ -408,13 +419,8 @@ Be realistic and accurate with real-world prices, real specifications, and authe
   }
   try {
     const parts = [];
-    if (imageBase64) {
-      parts.push({
-        inlineData: {
-          mimeType: detectedMimeType,
-          data: cleanBase64
-        }
-      });
+    if (hasPhoto) {
+      parts.push({ inlineData: { mimeType: detectedMimeType, data: cleanBase64 } });
     }
     parts.push({ text: promptText });
     let responseText = "";
@@ -422,160 +428,42 @@ Be realistic and accurate with real-world prices, real specifications, and authe
     try {
       responseText = await generateWithFallback({
         contents: { parts },
-        config: { responseMimeType: "application/json" }
+        config: { tools: [{ googleSearch: {} }] }
       });
-    } catch (aiErr) {
-      aiError = String(aiErr?.message || aiErr).slice(0, 300);
-      console.warn("All Gemini models failed for scan:", aiError);
+      extractAndParseJSON(responseText);
+    } catch (groundedErr) {
+      console.warn("Grounded Gemini call failed, retrying without search:", groundedErr?.message || groundedErr);
+      responseText = "";
+      try {
+        responseText = await generateWithFallback({
+          contents: { parts },
+          config: { responseMimeType: "application/json" }
+        });
+      } catch (aiErr) {
+        aiError = String(aiErr?.message || aiErr).slice(0, 300);
+        console.warn("All Gemini models failed for scan:", aiError);
+      }
     }
     if (responseText) {
       try {
         const parsed = extractAndParseJSON(responseText);
-        const normalized = normalizeProductScanResult(parsed, queryTerm, rawBarcode);
-        return res.json({ success: true, data: normalized });
+        const normalized = normalizeProductScanResult(parsed, queryTerm, identification, groundTruth);
+        return res.json({ success: true, found: true, data: normalized });
       } catch (jsonErr) {
         console.warn("JSON parse error:", jsonErr);
         aiError = aiError || "The AI returned a response that could not be read.";
       }
     }
-    if (!hasRealName) {
-      return res.status(502).json({
-        success: false,
-        error: `Could not identify this item right now (${aiError || "AI service unavailable"}). Please try again, or search by product name.`
-      });
-    }
-    const mockFallback = generateSmartFallbackProduct(queryTerm, rawBarcode);
-    return res.json({
-      success: true,
-      data: mockFallback,
-      rateLimitNotice: "Estimated product evaluation (AI service unavailable)."
+    const known = groundTruth ? ` The barcode matched "${groundTruth.name}" (${groundTruth.source}), but` : "";
+    return res.status(502).json({
+      success: false,
+      error: groundTruth ? `${known.trim()} price analysis is unavailable right now (${aiError || "AI service unavailable"}). Please try again.` : `Could not analyze this item right now (${aiError || "AI service unavailable"}). Please try again, or search by product name.`
     });
   } catch (error) {
     console.warn("Scan endpoint general error:", error?.message || error);
-    if (!hasRealName) {
-      return res.status(500).json({ success: false, error: "Scan failed on the server. Please try again." });
-    }
-    const mockFallback = generateSmartFallbackProduct(queryTerm, rawBarcode);
-    return res.json({
-      success: true,
-      data: mockFallback,
-      rateLimitNotice: "Estimated product evaluation (AI service unavailable)."
-    });
+    return res.status(500).json({ success: false, error: "Scan failed on the server. Please try again." });
   }
 });
-function generateSmartFallbackProduct(queryInput, rawBarcode) {
-  const query = queryInput.trim();
-  let name = query;
-  if (name.startsWith("Scanned") || name.startsWith("Barcode")) {
-    if (rawBarcode) {
-      name = `Retail Product (UPC ${rawBarcode})`;
-    } else {
-      name = "Scanned Product Item";
-    }
-  }
-  const isShirt = /shirt|t-shirt|tee|apparel|clothing|dress|pants|jacket|hoodie|top|garment|cotton|uniqlo/i.test(query);
-  const isHeadphones = /headphone|earbud|sony|bose|airpod|audio|speaker|sound|beats|jbl/i.test(query);
-  const isShoe = /shoe|sneaker|nike|adidas|jordan|footwear|runner|puma|hoka/i.test(query);
-  const isCamera = /camera|canon|fuji|nikon|sony camera|lens|gopro/i.test(query);
-  const isFood = /food|drink|coca|pepsi|snack|cereal|coffee|tea|sauce|grocery|water|candy|chips/i.test(query);
-  const isTech = /laptop|phone|apple|samsung|logitech|mouse|keyboard|monitor|tv|game|switch|ps5|xbox|dyson|vacuum|macbook|ipad/i.test(query);
-  const words = query.split(/\s+/);
-  let brand = words[0] || "Generic";
-  if (brand.toLowerCase() === "scanned" || brand.toLowerCase() === "retail") {
-    brand = "Major Retail Brand";
-  }
-  let category = "General Retail";
-  let msrp = 49.99;
-  let goodPrice = 39.99;
-  let greatDealPrice = 29.99;
-  if (isShirt) {
-    brand = query.match(/nike|adidas|uniqlo|under armour|zara|h&m|gap|levi's/i)?.[0] || brand;
-    category = "Apparel & Clothing";
-    msrp = 28;
-    goodPrice = 22;
-    greatDealPrice = 16;
-  } else if (isHeadphones) {
-    brand = query.match(/sony|bose|apple|beats|jbl|sennheiser|anker/i)?.[0] || brand;
-    category = "Headphones & Audio";
-    msrp = 199.99;
-    goodPrice = 169.99;
-    greatDealPrice = 139.99;
-  } else if (isShoe) {
-    brand = query.match(/nike|adidas|jordan|puma|hoka|new balance|asics|brooks/i)?.[0] || brand;
-    category = "Footwear";
-    msrp = 130;
-    goodPrice = 110;
-    greatDealPrice = 89.99;
-  } else if (isCamera) {
-    brand = query.match(/fujifilm|canon|nikon|sony|gopro|panasonic|leica/i)?.[0] || brand;
-    category = "Cameras & Optics";
-    msrp = 899.99;
-    goodPrice = 799.99;
-    greatDealPrice = 699.99;
-  } else if (isFood) {
-    brand = "Grocery Select";
-    category = "Food & Beverages";
-    msrp = 6.99;
-    goodPrice = 5.49;
-    greatDealPrice = 3.99;
-  } else if (isTech) {
-    brand = query.match(/logitech|apple|samsung|dyson|dell|hp|asus|lenovo|sony/i)?.[0] || brand;
-    category = "Electronics & Computing";
-    msrp = 149.99;
-    goodPrice = 129.99;
-    greatDealPrice = 99.99;
-  }
-  return {
-    productName: name,
-    brand,
-    category,
-    confidence: 0.92,
-    summary: `${name} is a high-rated product in the ${category} category, noted for reliable build quality, strong user reviews, and solid overall performance.`,
-    geminiDescription: `Detailed item analysis for ${name}. Review metrics indicate high buyer satisfaction, good durability, and fair value retention.`,
-    msrp,
-    goodPrice,
-    greatDealPrice,
-    priceRating: "GOOD_DEAL",
-    priceAdvice: "Current pricing is below standard retail MSRP. Solid buy if you need this item.",
-    rating: 4.6,
-    totalReviewsCount: 2450,
-    reviewSentiment: "OVERWHELMINGLY_POSITIVE",
-    pros: ["Durable materials and reliable performance", "Highly rated by verified buyers", "Competitive price point"],
-    cons: ["High demand may occasionally limit stock"],
-    keySpecs: [
-      { label: "Category", value: category },
-      { label: "Availability", value: "In Stock at Major Retailers" },
-      { label: "Warranty", value: "1 Year Standard Manufacturer Warranty" }
-    ],
-    topReviews: [
-      {
-        author: "VerifiedBuyer",
-        source: "Verified Buyer",
-        rating: 5,
-        comment: `Excellent quality and performance for ${name}. Exactly as described.`,
-        date: "1 week ago"
-      },
-      {
-        author: "SmartShopper",
-        source: "Verified Buyer",
-        rating: 4.5,
-        comment: "Great deal at current price. Would recommend to anyone looking in this category.",
-        date: "2 weeks ago"
-      }
-    ],
-    priceComparison: [
-      { retailer: "Amazon", price: goodPrice, inStock: true, dealTag: "Best current deal", url: `https://www.amazon.com/s?k=${encodeURIComponent(brand + " " + category)}` },
-      { retailer: "Best Buy", price: msrp, inStock: true, dealTag: "Standard MSRP", url: `https://www.bestbuy.com/site/searchpage.jsp?st=${encodeURIComponent(brand + " " + category)}` },
-      { retailer: "Walmart", price: greatDealPrice, inStock: true, dealTag: "Rollback deal", url: `https://www.walmart.com/search?q=${encodeURIComponent(brand + " " + category)}` }
-    ],
-    historicalPriceRange: {
-      lowestEver: greatDealPrice,
-      averagePrice: goodPrice,
-      highestPrice: msrp
-    },
-    verdict: `RECOMMENDED - ${name} represents a solid purchase decision at or near $${goodPrice}.`
-  };
-}
 app.post(["/api/ask", "/api/ask/"], async (req, res) => {
   const { productName, brand, category, summary, question } = req.body || {};
   if (!question || !productName) {

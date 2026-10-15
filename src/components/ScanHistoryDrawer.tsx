@@ -274,9 +274,14 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
               filteredItems.map((item) => {
                 const typeInfo = getScanTypeLabel(item.scanType);
                 const TypeIcon = typeInfo.icon;
-                const confidenceVal = typeof item.scanResult.confidence === 'number'
-                  ? (item.scanResult.confidence > 1 ? Math.round(item.scanResult.confidence) : Math.round(item.scanResult.confidence * 100))
-                  : 95;
+                const ident = item.scanResult.identification;
+                const matchLabel = ident?.verified
+                  ? 'Barcode verified'
+                  : ident?.method === 'photo'
+                  ? 'AI guess'
+                  : ident?.method === 'search' || ident?.method === 'correction'
+                  ? 'From search'
+                  : 'Unverified';
 
                 return (
                   <div
@@ -332,8 +337,12 @@ export const ScanHistoryDrawer: React.FC<ScanHistoryDrawerProps> = ({
                             <span>{typeInfo.label}</span>
                           </span>
 
-                          <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-300/50 dark:border-emerald-800/50">
-                            {confidenceVal}% Match
+                          <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border ${
+                            ident?.verified
+                              ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border-emerald-300/50 dark:border-emerald-800/50'
+                              : 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-300/50 dark:border-amber-800/50'
+                          }`}>
+                            {matchLabel}
                           </span>
                         </div>
                       </div>
