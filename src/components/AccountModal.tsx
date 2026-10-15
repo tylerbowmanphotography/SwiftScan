@@ -75,13 +75,13 @@ export function AccountModal({ open, user, paidEnabled, reason, onClose, onAuthC
   };
 
   const inputCls = 'w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white outline-none focus:border-pink-500';
-  const btnCls = 'w-full py-3 rounded-2xl bg-gradient-to-r from-pink-600 to-rose-500 text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-60';
+  const btnCls = 'ss-btn-primary w-full min-h-[3.25rem] text-base';
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white dark:bg-black rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-        <button type="button" onClick={onClose} aria-label="Close" className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">
+      <div className="absolute inset-0 bg-ink-950/70 backdrop-blur-md" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-white dark:bg-ink-900 rounded-[1.75rem] p-6 sm:p-7 shadow-2xl ring-1 ring-slate-200 dark:ring-white/10 space-y-4">
+        <button type="button" onClick={onClose} aria-label="Close" className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
           <X size={16} />
         </button>
 
@@ -105,7 +105,7 @@ export function AccountModal({ open, user, paidEnabled, reason, onClose, onAuthC
                 <span>Upgrade to Pro</span>
               </button>
             ) : null}
-            <button type="button" onClick={logout} disabled={busy} className="w-full text-xs font-bold text-slate-500 underline">
+            <button type="button" onClick={logout} disabled={busy} className="w-full text-xs font-bold text-slate-600 dark:text-slate-400 underline">
               Sign out
             </button>
           </>
@@ -154,7 +154,7 @@ export function AccountModal({ open, user, paidEnabled, reason, onClose, onAuthC
                   {busy && <Loader2 size={16} className="animate-spin" />}
                   <span>Sign in</span>
                 </button>
-                <button type="button" onClick={() => { setStep('email'); setCode(''); setNote(null); }} className="w-full text-xs font-bold text-slate-500 underline">
+                <button type="button" onClick={() => { setStep('email'); setCode(''); setNote(null); }} className="w-full text-xs font-bold text-slate-600 dark:text-slate-400 underline">
                   Use a different email
                 </button>
               </>
