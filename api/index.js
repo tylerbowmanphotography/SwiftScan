@@ -42,8 +42,16 @@ async function generateWithFallback(params) {
   }
   throw lastErr || new Error("All Gemini models failed");
 }
+var KEY_VAR_NAMES = ["GEMINI_API_KEY", "GoogleAIStudio", "GOOGLE_API_KEY"];
+function resolveGeminiKey() {
+  for (const name of KEY_VAR_NAMES) {
+    const v = process.env[name];
+    if (v) return { key: v, source: name };
+  }
+  return { key: void 0, source: void 0 };
+}
 function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = resolveGeminiKey().key;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY environment variable is not configured");
   }
@@ -59,7 +67,8 @@ function getGeminiClient() {
 app.get(["/api/health", "/api/health/"], (req, res) => {
   res.json({
     status: "ok",
-    geminiConfigured: !!process.env.GEMINI_API_KEY,
+    geminiConfigured: !!resolveGeminiKey().key,
+    geminiKeySource: resolveGeminiKey().source,
     models: GEMINI_MODELS,
     lastGeminiError: lastGeminiError || void 0,
     timestamp: (/* @__PURE__ */ new Date()).toISOString()
@@ -391,10 +400,10 @@ Return a valid JSON object with this exact structure:
 Be realistic and accurate with real-world prices, real specifications, and authentic consumer sentiment matching the exact item type. Ensure values for msrp, goodPrice, and greatDealPrice are numbers.`;
   const queryTerm = correctionHint || (resolvedBarcodeProduct ? resolvedBarcodeProduct.name : null) || textQuery || (rawBarcode ? `Barcode ${rawBarcode}` : "Scanned Item");
   const hasRealName = !!(correctionHint || resolvedBarcodeProduct || textQuery && !rawBarcode);
-  if (!process.env.GEMINI_API_KEY && !hasRealName) {
+  if (!resolveGeminiKey().key && !hasRealName) {
     return res.status(503).json({
       success: false,
-      error: "The scanning service is not configured: GEMINI_API_KEY is missing on the server."
+      error: "The scanning service is not configured: no Gemini API key is set on the server (GEMINI_API_KEY)."
     });
   }
   try {
