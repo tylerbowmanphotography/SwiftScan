@@ -2,11 +2,12 @@ import express from "express";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { registerMonetizationRoutes, scanQuota } from "./server/monetization";
 
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // CORS & Preflight headers middleware for browser cross-origin/iframe requests
 app.use((req, res, next) => {
@@ -21,7 +22,13 @@ app.use((req, res, next) => {
 });
 
 // Increase limits to handle high-resolution image uploads safely
-app.use(express.json({ limit: "50mb" }));
+app.use(express.json({
+  limit: "50mb",
+  // Stripe webhook signature verification needs the exact raw bytes.
+  verify: (req: any, _res, buf) => {
+    if (typeof req.originalUrl === "string" && req.originalUrl.startsWith("/api/stripe-webhook")) req.rawBody = buf;
+  },
+}));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Gemini models, tried in order. 2.5 models are kept last because Google now only
@@ -78,6 +85,9 @@ function getGeminiClient() {
     },
   });
 }
+
+// Monetization: /api/config, /api/checkout, /api/checkout/verify, /api/stripe-webhook
+registerMonetizationRoutes(app);
 
 // Health check endpoint
 app.get(["/api/health", "/api/health/"], (req, res) => {
@@ -395,7 +405,7 @@ function extractAndParseJSON(text: string): any {
 }
 
 // Main Product Scan API endpoint
-app.post(["/api/scan", "/api/scan/"], async (req, res) => {
+app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {
   const { imageBase64, mimeType = "image/jpeg", textQuery, barcode, correctionHint } = req.body || {};
 
   // Check if at least one input field is provided

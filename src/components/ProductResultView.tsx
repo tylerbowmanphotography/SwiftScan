@@ -1,4 +1,4 @@
-import { getAffiliateUrl } from '../utils/affiliate';
+import { getAffiliateUrl, getAffiliateConfig, hasAffiliateIds, isAmazonLink } from '../utils/affiliate';
 import React, { useState } from 'react';
 import {
   Star,
@@ -902,9 +902,9 @@ Summary: ${result.summary}`;
                   <a
                     href={getAffiliateUrl(item.url, item.retailer, result.productName)}
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel="noopener noreferrer sponsored"
                     className="px-3 py-1.5 rounded-xl bg-pink-600 text-white font-bold text-xs shadow-sm hover:bg-pink-700 transition-colors flex items-center gap-1"
-                    title="Disclosure: This is an affiliate link that helps support the app"
+                    title={hasAffiliateIds() ? 'Affiliate link: we may earn a commission at no extra cost to you' : undefined}
                   >
                     <span>View Deal</span>
                     <ExternalLink size={13} />
@@ -914,10 +914,20 @@ Summary: ${result.summary}`;
             ))}
           </div>
 
+          {hasAffiliateIds() && (
+            <p className="mt-3 text-[10px] text-slate-400 leading-snug">
+              {getAffiliateConfig().amazonTag && result.priceComparison.some((i) => isAmazonLink(i.url))
+                ? 'As an Amazon Associate I earn from qualifying purchases. '
+                : ''}
+              Links above may be affiliate links; we may earn a commission at no extra cost to you.
+            </p>
+          )}
+
           <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
               <TrendingDown size={18} className="text-pink-600" />
-              <span>6-Month Price Trend</span>
+              <span>Illustrative Price Trend</span>
+              <span className="text-[10px] font-semibold text-slate-400">(sample shape, not real price history)</span>
             </h3>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
