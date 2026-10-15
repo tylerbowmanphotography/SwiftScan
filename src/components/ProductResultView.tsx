@@ -190,9 +190,25 @@ export const ProductResultView: React.FC<ProductResultViewProps> = ({
 
   const badgeStyle = getPriceBadgeStyle(result.priceRating);
 
-  const confidenceVal = typeof result.confidence === 'number'
-    ? (result.confidence > 1 ? Math.round(result.confidence) : Math.round(result.confidence * 100))
-    : 95;
+  const ident = result.identification;
+  const isDbVerified = !!(ident && ident.verified && ident.method === 'database');
+  const isPhotoId = ident?.method === 'photo';
+  // Only AI photo identification has a confidence number, and it is shown as an unverified estimate.
+  const confidenceVal = isPhotoId && typeof result.confidence === 'number'
+    ? Math.min(70, Math.round(result.confidence > 1 ? result.confidence : result.confidence * 100))
+    : 0;
+  const hasRating = typeof result.rating === 'number' && !isNaN(result.rating);
+  const hasReviewCount = typeof result.totalReviewsCount === 'number' && result.totalReviewsCount > 0;
+  const idBadgeLabel = isDbVerified
+    ? `BARCODE MATCH · ${ident?.source || 'DATABASE'}`
+    : isPhotoId
+    ? `AI PHOTO GUESS · ${confidenceVal}% (UNVERIFIED)`
+    : ident?.method === 'search' || ident?.method === 'correction'
+    ? 'MATCHED FROM YOUR SEARCH'
+    : 'UNVERIFIED';
+  const idBadgeClass = isDbVerified
+    ? 'bg-emerald-950/60 text-emerald-400 border-emerald-900/50'
+    : 'bg-amber-950/60 text-amber-300 border-amber-900/50';
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -204,8 +220,7 @@ export const ProductResultView: React.FC<ProductResultViewProps> = ({
 
   const handleCopySummary = () => {
     const text = `${result.productName} by ${result.brand}
-Rating: ${result.rating}/5 (${result.totalReviewsCount.toLocaleString()} reviews)
-MSRP: ${formatCurrency(result.msrp)} | Target Fair Price: ${formatCurrency(result.goodPrice)}
+${hasRating ? `Rating: ${result.rating}/5${hasReviewCount ? ` (${result.totalReviewsCount!.toLocaleString()} reviews)` : ''}\n` : ''}MSRP: ${formatCurrency(result.msrp)} | Target Fair Price: ${formatCurrency(result.goodPrice)}
 Verdict: ${result.verdict}
 Summary: ${result.summary}`;
     navigator.clipboard.writeText(text);
@@ -239,21 +254,21 @@ Summary: ${result.summary}`;
       {/* Top Banner Card with Image & Title */}
       <div className="bg-white dark:bg-black rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
-          {capturedImageUrl ? (
+          {(capturedImageUrl || ident?.imageUrl) ? (
             <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200 dark:border-slate-700 shadow-inner group">
               <img
-                src={capturedImageUrl}
+                src={capturedImageUrl || ident?.imageUrl}
                 alt={result.productName}
                 className="w-full h-full object-cover"
               />
               <span className="absolute bottom-1.5 right-1.5 bg-black/70 text-[10px] font-bold text-white px-2 py-0.5 rounded-md backdrop-blur-sm">
-                PHOTO
+                {capturedImageUrl ? 'PHOTO' : 'DATABASE'}
               </span>
               <button
                 type="button"
                 onClick={() => {
                   const link = document.createElement('a');
-                  link.href = capturedImageUrl;
+                  link.href = (capturedImageUrl || ident?.imageUrl) as string;
                   link.download = `scan-${result.productName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.jpg`;
                   document.body.appendChild(link);
                   link.click();
@@ -282,9 +297,9 @@ Summary: ${result.summary}`;
                 </span>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center gap-1.5 bg-emerald-950/60 text-emerald-400 font-extrabold px-3 py-1 rounded-full text-xs border border-emerald-900/50">
-                  <ShieldCheck size={13} />
-                  <span>{confidenceVal}% MATCH CONFIDENCE</span>
+                <div className={`flex items-center gap-1.5 font-extrabold px-3 py-1 rounded-full text-xs border ${idBadgeClass}`}>
+                  {isDbVerified ? <ShieldCheck size={13} /> : <AlertTriangle size={13} />}
+                  <span>{idBadgeLabel}</span>
                 </div>
 
                 <button
@@ -303,21 +318,29 @@ Summary: ${result.summary}`;
               {result.productName}
             </h1>
 
-            {/* Aggregated Rating Row */}
-            <div className="flex items-center gap-3 pt-1">
-              <div className="flex items-center gap-1 text-amber-400">
-                <Star size={16} className="fill-current" />
-                <span className="text-sm font-bold text-slate-900 dark:text-white ml-1">
-                  {(typeof result.rating === 'number' ? result.rating : 4.5).toFixed(1)} / 5.0
-                </span>
+            {/* Rating row: only shown when backed by a real source (none yet), never invented */}
+            {(hasRating || result.reviewSentiment) && (
+              <div className="flex items-center gap-3 pt-1">
+                {hasRating && (
+                  <div className="flex items-center gap-1 text-amber-400">
+                    <Star size={16} className="fill-current" />
+                    <span className="text-sm font-bold text-slate-900 dark:text-white ml-1">
+                      {result.rating!.toFixed(1)} / 5.0
+                    </span>
+                  </div>
+                )}
+                {hasRating && hasReviewCount && (
+                  <span className="text-xs text-slate-400">
+                    ({result.totalReviewsCount!.toLocaleString()} reviews)
+                  </span>
+                )}
+                {result.reviewSentiment && (
+                  <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                    {result.reviewSentiment.replace(/_/g, ' ')} (est.)
+                  </span>
+                )}
               </div>
-              <span className="text-xs text-slate-400">
-                ({(typeof result.totalReviewsCount === 'number' ? result.totalReviewsCount : 100).toLocaleString()} reviews)
-              </span>
-              <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-900/50">
-                {(result.reviewSentiment || 'POSITIVE').replace(/_/g, ' ')}
-              </span>
-            </div>
+            )}
           </div>
         </div>
 
@@ -359,55 +382,44 @@ Summary: ${result.summary}`;
         </div>
       </div>
 
-      {/* AI SCAN MATCH CONFIDENCE SCORE GAUGE */}
+      {/* HOW THIS PRODUCT WAS IDENTIFIED (honest provenance, no fake certainty) */}
       <div className="bg-white dark:bg-black rounded-3xl p-5 shadow-sm border border-slate-200 dark:border-slate-800 space-y-3.5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 shrink-0">
-              <ShieldCheck size={20} />
+            <div className={`p-2.5 rounded-2xl border shrink-0 ${
+              isDbVerified
+                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-800/60'
+                : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/60 dark:border-amber-800/60'
+            }`}>
+              {isDbVerified ? <ShieldCheck size={20} /> : <AlertTriangle size={20} />}
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Barcode Match Confidence</h3>
-                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-300/50 dark:border-emerald-800/50 uppercase tracking-wider">
-                  {confidenceVal >= 90 ? 'High Confidence Match' : confidenceVal >= 75 ? 'Moderate Match' : 'Fair Match'}
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">Verified via barcode database lookup & real-time market catalog cross-reference</p>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                {isDbVerified ? 'Identified from barcode database' : isPhotoId ? 'Identified by AI from your photo (unverified)' : ident?.method === 'search' || ident?.method === 'correction' ? 'Product from your search' : 'Identification not verified'}
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {isDbVerified
+                  ? `UPC ${ident?.upc || ''} matched in ${ident?.source}. Name and brand come from that database. Prices below are AI estimates.`
+                  : isPhotoId
+                  ? 'The AI read this from the photo and may be wrong. Check the name against your product. Prices below are AI estimates.'
+                  : ident?.method === 'search' || ident?.method === 'correction'
+                  ? 'This is the product you typed. Prices below are AI estimates.'
+                  : 'This scan was saved before barcode verification was added and may be inaccurate.'}
+              </p>
             </div>
           </div>
-          <div className="text-right shrink-0">
-            <span className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              {confidenceVal}%
-            </span>
-          </div>
         </div>
 
-        {/* Visual Gauge Progress Bar */}
-        <div className="space-y-1.5 pt-1">
-          <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-200/60 dark:border-slate-700/60 relative">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${confidenceVal}%` }}
-              transition={{ duration: 0.9, ease: 'easeOut' }}
-              className={`h-full rounded-full bg-gradient-to-r ${
-                confidenceVal >= 90
-                  ? 'from-emerald-500 via-teal-400 to-emerald-400 shadow-sm shadow-emerald-500/30'
-                  : confidenceVal >= 75
-                  ? 'from-blue-500 via-indigo-400 to-blue-400'
-                  : 'from-amber-500 via-orange-400 to-amber-400'
-              }`}
-            />
+        {isPhotoId && confidenceVal > 0 && (
+          <div className="space-y-1.5 pt-1">
+            <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-amber-500" style={{ width: `${confidenceVal}%` }} />
+            </div>
+            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400">
+              <span>AI estimate: {confidenceVal}% (capped, not verified)</span>
+            </div>
           </div>
-
-          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 px-0.5">
-            <span>0% Unverified</span>
-            <span className="text-slate-600 dark:text-slate-300 font-bold">
-              {confidenceVal}% AI Certainty Rating
-            </span>
-            <span>100% Exact Match</span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* PRICE ADVISOR & DEAL ASSESSMENT CARD */}
@@ -419,7 +431,7 @@ Summary: ${result.summary}`;
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white">Price & Value Assessment</h2>
-              <p className="text-xs text-slate-400">Target price analysis & deal accuracy</p>
+              <p className="text-xs text-slate-400">AI price estimates. Confirm at the retailer before buying.</p>
             </div>
           </div>
 
@@ -558,7 +570,7 @@ Summary: ${result.summary}`;
 
             <div className="prose dark:prose-invert max-w-none text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed space-y-3">
               <p>
-                {result.geminiDescription || `${result.productName} by ${result.brand} is engineered for exceptional user performance in the ${result.category} space. Combining high-grade hardware components with optimized consumer experience, it stands out for its high reliability score (${result.rating.toFixed(1)}/5 from ${result.totalReviewsCount.toLocaleString()} reviews).`}
+                {result.geminiDescription || result.summary || `${result.productName} by ${result.brand} (${result.category}).`}
               </p>
             </div>
 
@@ -778,15 +790,17 @@ Summary: ${result.summary}`;
                   <span>Aggregated Review Sentiment & Insights</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Extracted from over {result.totalReviewsCount.toLocaleString()} buyer reviews and expert testing
+                  AI-generated summary. Not based on counted customer reviews.
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-pink-50 dark:bg-pink-950/50 text-pink-600 dark:text-pink-400 border border-pink-100 dark:border-pink-900/50">
-                  Sentiment: {result.reviewSentiment.replace(/_/g, ' ')}
-                </span>
-              </div>
+              {result.reviewSentiment && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-pink-50 dark:bg-pink-950/50 text-pink-600 dark:text-pink-400 border border-pink-100 dark:border-pink-900/50">
+                    Sentiment (est.): {result.reviewSentiment.replace(/_/g, ' ')}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Visual Grid of Pros & Cons */}
@@ -996,15 +1010,30 @@ Summary: ${result.summary}`;
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">Customer Reviews Highlight</h3>
-              <p className="text-xs text-slate-400">Aggregated feedback across verified platforms</p>
+              <p className="text-xs text-slate-400">Real customer reviews live on the retailer sites.</p>
             </div>
-            <div className="text-right">
-              <span className="text-lg font-extrabold text-slate-900 dark:text-white">{result.rating.toFixed(1)} / 5.0</span>
-            </div>
+            {hasRating && (
+              <div className="text-right">
+                <span className="text-lg font-extrabold text-slate-900 dark:text-white">{result.rating!.toFixed(1)} / 5.0</span>
+              </div>
+            )}
           </div>
 
+          {(!result.topReviews || result.topReviews.length === 0) && (
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 text-xs text-slate-500 dark:text-slate-300 space-y-2">
+              <p>We don't have verified customer reviews or a star rating for this product, so none are shown rather than making them up.</p>
+              <a
+                href={`https://www.google.com/search?q=${encodeURIComponent(result.productName + ' reviews')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block font-bold text-pink-600 dark:text-pink-400 underline"
+              >
+                Search reviews for this product
+              </a>
+            </div>
+          )}
           <div className="space-y-3">
-            {result.topReviews.map((rev, idx) => (
+            {(result.topReviews || []).map((rev, idx) => (
               <div key={idx} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">

@@ -486,7 +486,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                 </div>
                 <h4 className="text-base font-bold text-white z-20">Identifying Product with AI...</h4>
                 <p className="text-xs text-zinc-300 mt-1 z-20 max-w-xs">
-                  Analyzing model, calculating MSRP, aggregating buyer reviews & live retail prices
+                  Identifying the product and estimating prices
                 </p>
               </div>
             )}
@@ -496,11 +496,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
           <div className="p-2.5 bg-zinc-950/90 border-t border-zinc-900 flex items-center gap-1.5 overflow-x-auto text-[11px] font-semibold text-zinc-300 scrollbar-none">
             <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold shrink-0 pl-2">Test Barcodes:</span>
             {[
-              { label: '👕 Uniqlo Tee', code: '019283746501' },
-              { label: '🥤 Coke Can', code: '049000006346' },
-              { label: '🎧 Sony XM5', code: '027242922112' },
-              { label: '👟 Nike AF1', code: '888462000000' },
-              { label: '🎮 Switch OLED', code: '045496881857' },
+              { label: '🥤 Diet Coke', code: '0049000028911' },
               { label: '📚 C Book', code: '9780131103627' },
             ].map((item) => (
               <button
