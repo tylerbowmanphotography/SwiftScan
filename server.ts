@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
-import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -25,6 +24,36 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
+// Gemini models, tried in order. 2.5 models are kept last because Google now only
+// serves them to API keys that have used them before. Override with GEMINI_MODEL.
+const GEMINI_MODELS: string[] = [
+  process.env.GEMINI_MODEL,
+  "gemini-3.8-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-2.5-flash",
+].filter((m, i, arr): m is string => !!m && arr.indexOf(m) === i);
+
+let lastGeminiError = "";
+
+// Try each model in turn; throws the last error if every model fails.
+async function generateWithFallback(params: { contents: any; config?: any }): Promise<string> {
+  const ai = getGeminiClient();
+  let lastErr: any = null;
+  for (const model of GEMINI_MODELS) {
+    try {
+      const response = await ai.models.generateContent({ model, ...params });
+      const text = response.text || "";
+      if (text) return text;
+      lastErr = new Error(`Model ${model} returned an empty response`);
+    } catch (err: any) {
+      lastErr = err;
+      lastGeminiError = `${model}: ${String(err?.message || err).slice(0, 300)}`;
+      console.warn(`Gemini model ${model} failed:`, err?.message || err);
+    }
+  }
+  throw lastErr || new Error("All Gemini models failed");
+}
+
 // Initialize Gemini client lazily or when endpoint is called
 function getGeminiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -43,7 +72,13 @@ function getGeminiClient() {
 
 // Health check endpoint
 app.get(["/api/health", "/api/health/"], (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({
+    status: "ok",
+    geminiConfigured: !!process.env.GEMINI_API_KEY,
+    models: GEMINI_MODELS,
+    lastGeminiError: lastGeminiError || undefined,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Known Barcode Map for instant accurate lookups
@@ -142,16 +177,11 @@ async function resolveBarcodeToProduct(rawCode: string): Promise<{ name: string;
 
   // 5. Try Gemini search for unknown UPC barcode
   try {
-    const ai = getGeminiClient();
-    const barcodePrompt = `Find the exact product name, brand, and category for UPC/EAN barcode ${code}. Return JSON object with keys: name, brand, category. If unknown, guess the most likely retail product type. Example: {"name": "Logitech MX Master 3S", "brand": "Logitech", "category": "Computer Accessories"}`;
-    const res = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const barcodePrompt = `Find the exact product name, brand, and category for UPC/EAN barcode ${code}. Return JSON object with keys: name, brand, category. If you do not know this exact barcode, return {"name": "unknown"} - never guess. Example: {"name": "Logitech MX Master 3S", "brand": "Logitech", "category": "Computer Accessories"}`;
+    const text = await generateWithFallback({
       contents: barcodePrompt,
-      config: {
-        responseMimeType: "application/json",
-      },
+      config: { responseMimeType: "application/json" },
     });
-    const text = res.text || "";
     if (text) {
       const parsed = JSON.parse(text);
       if (parsed.name && !parsed.name.toLowerCase().includes("unknown")) {
@@ -440,13 +470,22 @@ Be realistic and accurate with real-world prices, real specifications, and authe
 
   const queryTerm = correctionHint || (resolvedBarcodeProduct ? resolvedBarcodeProduct.name : null) || textQuery || (rawBarcode ? `Barcode ${rawBarcode}` : "Scanned Item");
 
+  // The built-in synthesizer only makes sense when we know a real product name.
+  // For a photo-only or unresolved-barcode scan it would invent a fake product,
+  // so in that case report the real error instead.
+  const hasRealName = !!(correctionHint || resolvedBarcodeProduct || (textQuery && !rawBarcode));
+
+  if (!process.env.GEMINI_API_KEY && !hasRealName) {
+    return res.status(503).json({
+      success: false,
+      error: "The scanning service is not configured: GEMINI_API_KEY is missing on the server.",
+    });
+  }
+
   try {
-    const ai = getGeminiClient();
     const parts: any[] = [];
 
     if (imageBase64) {
-      const cleanBase64 = imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64;
-      const detectedMimeType = imageBase64.match(/^data:([^;]+);base64,/)?.[1] || mimeType || "image/jpeg";
       parts.push({
         inlineData: {
           mimeType: detectedMimeType,
@@ -458,34 +497,16 @@ Be realistic and accurate with real-world prices, real specifications, and authe
     parts.push({ text: promptText });
 
     let responseText = "";
-    
-    // Attempt 1: primary model gemini-2.5-flash
+    let aiError = "";
+
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+      responseText = await generateWithFallback({
         contents: { parts },
-        config: {
-          responseMimeType: "application/json",
-        },
+        config: { responseMimeType: "application/json" },
       });
-      responseText = response.text || "";
-    } catch (primaryErr: any) {
-      console.warn("Primary model error, trying fallback:", primaryErr?.message || primaryErr);
-      // Attempt 2: fallback model gemini-2.5-flash-lite
-      try {
-        const fallbackResponse = await ai.models.generateContent({
-          model: "gemini-2.5-flash-lite",
-          contents: { parts },
-          config: {
-            responseMimeType: "application/json",
-          },
-        });
-        responseText = fallbackResponse.text || "";
-      } catch (liteErr: any) {
-        console.warn("Fallback model error:", liteErr?.message || liteErr);
-        // If all AI calls hit rate limit, fall through to smart product synthesizer
-        console.log("Gemini API rate limit or error reached. Using intelligent product price synthesizer.");
-      }
+    } catch (aiErr: any) {
+      aiError = String(aiErr?.message || aiErr).slice(0, 300);
+      console.warn("All Gemini models failed for scan:", aiError);
     }
 
     if (responseText) {
@@ -494,24 +515,35 @@ Be realistic and accurate with real-world prices, real specifications, and authe
         const normalized = normalizeProductScanResult(parsed, queryTerm, rawBarcode);
         return res.json({ success: true, data: normalized });
       } catch (jsonErr) {
-        console.warn("JSON parse error, falling back to synthesizer:", jsonErr);
+        console.warn("JSON parse error:", jsonErr);
+        aiError = aiError || "The AI returned a response that could not be read.";
       }
     }
 
-    // Dynamic smart fallback if API rate limits occur or response is empty
+    if (!hasRealName) {
+      return res.status(502).json({
+        success: false,
+        error: `Could not identify this item right now (${aiError || "AI service unavailable"}). Please try again, or search by product name.`,
+      });
+    }
+
+    // Product name is known but the AI is unavailable: estimated placeholder data, clearly flagged.
     const mockFallback = generateSmartFallbackProduct(queryTerm, rawBarcode);
     return res.json({
       success: true,
       data: mockFallback,
-      rateLimitNotice: "Synthesized product evaluation.",
+      rateLimitNotice: "Estimated product evaluation (AI service unavailable).",
     });
   } catch (error: any) {
     console.warn("Scan endpoint general error:", error?.message || error);
+    if (!hasRealName) {
+      return res.status(500).json({ success: false, error: "Scan failed on the server. Please try again." });
+    }
     const mockFallback = generateSmartFallbackProduct(queryTerm, rawBarcode);
     return res.json({
       success: true,
       data: mockFallback,
-      rateLimitNotice: "Synthesized product evaluation.",
+      rateLimitNotice: "Estimated product evaluation (AI service unavailable).",
     });
   }
 });
@@ -648,8 +680,6 @@ app.post(["/api/ask", "/api/ask/"], async (req, res) => {
   }
 
   try {
-    const ai = getGeminiClient();
-
     const promptText = `You are PriceLens AI, an expert, objective product advisor and buyer assistant.
 The user is asking a specific question about the following product:
 - Product: ${productName} (${brand})
@@ -660,12 +690,9 @@ User Question: "${question}"
 
 Provide a direct, accurate, and structured answer to the user's question. Include key practical insights, compatibility details, warranty or build considerations, or real-world user advice if applicable. Keep the answer clear, professional, and well-formatted.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: promptText,
-    });
+    const answerText = await generateWithFallback({ contents: promptText });
 
-    return res.json({ success: true, answer: response.text || "No response generated." });
+    return res.json({ success: true, answer: answerText || "No response generated." });
   } catch (error: any) {
     console.error("Ask API error:", error?.message || error);
     // Provide a helpful fallback answer if quota/rate limits occur
@@ -685,10 +712,7 @@ app.post(["/api/autocomplete", "/api/autocomplete/"], async (req, res) => {
   }
 
   try {
-    const ai = getGeminiClient();
-    
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const suggestionsText = await generateWithFallback({
       contents: `You are a fast product search autocomplete engine. Given the partial query "${query}", provide a JSON array of 5 popular product search strings that start with or relate to this query. Focus on consumer electronics, home goods, or apparel. Only return a JSON array of strings. Example: ["sony headphones", "sony tv 4k", "sony camera"]`,
       config: {
         responseMimeType: "application/json",
@@ -696,7 +720,7 @@ app.post(["/api/autocomplete", "/api/autocomplete/"], async (req, res) => {
     });
 
     try {
-      const suggestions = JSON.parse(response.text || "[]");
+      const suggestions = JSON.parse(suggestionsText || "[]");
       return res.json({ suggestions });
     } catch(e) {
       return res.json({ suggestions: generateFallbackSuggestions(query) });
@@ -728,10 +752,7 @@ app.post(["/api/local-stores", "/api/local-stores/"], async (req, res) => {
   const locString = location || "nearby retail hubs";
 
   try {
-    const ai = getGeminiClient();
-    
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const storesText = await generateWithFallback({
       contents: `Find 3-5 major retail store chains near ${locString} that typically carry "${productName}". Provide store name, sample address, and why they carry it. Return JSON array with keys: name, address, reason.`,
       config: {
         responseMimeType: "application/json",
@@ -740,7 +761,7 @@ app.post(["/api/local-stores", "/api/local-stores/"], async (req, res) => {
 
     let stores = [];
     try {
-      stores = JSON.parse(response.text || "[]");
+      stores = JSON.parse(storesText || "[]");
     } catch(e) {
       stores = getDefaultLocalStores(productName);
     }
@@ -778,6 +799,7 @@ app.all("/api/*", (req, res) => {
 async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -796,4 +818,10 @@ async function startServer() {
   });
 }
 
-startServer();
+// On Vercel the app is imported by api/index.ts as a serverless function
+// (static files are served by Vercel itself), so only listen when run directly.
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
