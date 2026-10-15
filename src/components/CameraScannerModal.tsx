@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Camera, RefreshCw, X, Image as ImageIcon, Zap, AlertCircle, Sparkles, Search, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
+import { DecodeHintType } from '@zxing/library';
 
 interface CameraScannerModalProps {
   isOpen: boolean;
@@ -23,7 +24,10 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
 
+  const streamRef = useRef<MediaStream | null>(null);
+  const startTokenRef = useRef(0);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [videoReady, setVideoReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [isFlashOn, setIsFlashOn] = useState(false);
@@ -32,7 +36,9 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
 
   useEffect(() => {
     if (!readerRef.current) {
-      readerRef.current = new BrowserMultiFormatReader();
+      const hints = new Map();
+      hints.set(DecodeHintType.TRY_HARDER, true);
+      readerRef.current = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 100 });
     }
   }, []);
 
@@ -66,9 +72,9 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     let controls: any = null;
     let isCancelled = false;
 
-    if (stream && videoRef.current && readerRef.current && !isLoading && !snapshotPreview) {
+    if (stream && videoReady && videoRef.current && readerRef.current && !isLoading && !snapshotPreview) {
       const vid = videoRef.current;
-      // Ensure video is ready before decoding
+      // Only start decoding once the video is actually producing frames
       if (vid.readyState >= 2 || vid.videoWidth > 0) {
         try {
           readerRef.current
@@ -116,7 +122,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
         }
       }
     };
-  }, [stream, isLoading, snapshotPreview]);
+  }, [stream, videoReady, isLoading, snapshotPreview]);
 
   const playChime = () => {
     try {
@@ -148,6 +154,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
   const startCamera = async () => {
     stopCamera();
     setCameraError(null);
+    const token = ++startTokenRef.current;
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -159,6 +166,8 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
         mediaStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: facingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
           },
           audio: false,
         });
@@ -171,6 +180,13 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
         });
       }
 
+      // The modal was closed / camera flipped while the permission prompt was open
+      if (token !== startTokenRef.current) {
+        mediaStream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
+      streamRef.current = mediaStream;
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
@@ -196,16 +212,23 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
   };
 
   const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => {
+    // Use the ref (not state) so cleanup closures always stop the live stream
+    startTokenRef.current++;
+    const current = streamRef.current;
+    if (current) {
+      current.getTracks().forEach((track) => {
         try {
           track.stop();
         } catch (e) {
           // ignore
         }
       });
-      setStream(null);
+      streamRef.current = null;
     }
+    setStream(null);
+    setVideoReady(false);
+    setIsFlashOn(false);
+    setHasTorch(false);
   };
 
   const toggleFlash = async () => {
@@ -406,6 +429,8 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                   autoPlay
                   playsInline
                   muted
+                  onLoadedData={() => setVideoReady(true)}
+                  onPlaying={() => setVideoReady(true)}
                   className={`w-full h-full object-cover ${snapshotPreview ? 'opacity-0' : 'opacity-100'}`}
                 />
 
