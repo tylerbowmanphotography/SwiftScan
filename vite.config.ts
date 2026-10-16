@@ -1,11 +1,40 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import {defineConfig, loadEnv} from 'vite';
+import {adsenseClientId} from './src/utils/adsense';
 
-export default defineConfig(() => {
+export default defineConfig(({mode}) => {
+  const env = loadEnv(mode, process.cwd(), 'VITE_');
+  const adsenseClient = adsenseClientId(env.VITE_ADSENSE_CLIENT_ID);
+
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      {
+        name: 'adsense-html',
+        transformIndexHtml() {
+          if (!adsenseClient) return;
+          return [
+            {
+              tag: 'meta',
+              attrs: {name: 'google-adsense-account', content: adsenseClient},
+              injectTo: 'head',
+            },
+            {
+              tag: 'script',
+              attrs: {
+                async: true,
+                src: `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`,
+                crossorigin: 'anonymous',
+              },
+              injectTo: 'head',
+            },
+          ];
+        },
+      },
+    ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
