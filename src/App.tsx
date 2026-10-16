@@ -764,7 +764,7 @@ export default function App() {
                             {item.scanResult.brand}
                           </span>
                           {item.isBookmarked && (
-                            <Bookmark size={14} className="fill-pink-500 text-pink-500 shrink-0" aria-label="Bookmarked" />
+                            <Bookmark size={14} className="fill-pink-600 text-pink-600 shrink-0" aria-label="Bookmarked" />
                           )}
                         </div>
 
@@ -923,7 +923,7 @@ export default function App() {
   if (isIphoneFrameMode) {
     return (
       <div className="min-h-screen bg-slate-100 dark:bg-black flex flex-col items-center justify-center p-2 sm:p-6 select-none">
-        <div className="relative w-full max-w-[410px] h-[850px] max-h-[92vh] bg-slate-50 dark:bg-slate-950 rounded-[55px] p-3 shadow-[0_0_100px_rgba(99,102,241,0.25)] border-4 border-slate-200 dark:border-slate-800 ring-1 ring-slate-700 overflow-hidden flex flex-col">
+        <div className="relative w-full max-w-[410px] h-[850px] max-h-[92vh] bg-slate-50 dark:bg-slate-950 rounded-[55px] p-3 shadow-[0_0_100px_color-mix(in_srgb,var(--color-pink-600)_25%,transparent)] border-4 border-slate-200 dark:border-slate-800 ring-1 ring-slate-700 overflow-hidden flex flex-col">
           {/* iPhone Dynamic Island Header */}
           <div className="absolute top-5 left-1/2 -translate-x-1/2 z-50 w-28 h-7 bg-slate-100 dark:bg-black rounded-full flex items-center justify-between px-2.5 shadow-md">
             <div className="w-2.5 h-2.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800" />

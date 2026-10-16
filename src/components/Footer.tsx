@@ -9,7 +9,7 @@ export function Footer({ affiliate }: { affiliate: AffiliateConfig }) {
       <div className="mx-auto max-w-6xl space-y-6 px-4 sm:px-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-pink-700 text-white">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-pink-600 to-pink-800 text-white">
               <ScanBarcode size={19} aria-hidden />
             </span>
             <div>

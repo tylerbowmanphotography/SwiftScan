@@ -149,6 +149,10 @@ async function sendEmail(msg) {
   }
 }
 
+// server/brand.ts
+var BRAND_BUTTON = "#db2777";
+var BRAND_LINK = "#be185d";
+
 // server/auth.ts
 var SESSION_COOKIE = "ss_sess";
 var SESSION_DAYS = 30;
@@ -196,7 +200,7 @@ function codeEmail(code) {
   const text = `Your SwiftScan sign-in code is ${code}. It expires in 10 minutes.
 
 If you didn't ask for this, you can ignore this email.`;
-  const html = `<div style="font-family:system-ui,sans-serif;max-width:420px"><h2 style="margin:0 0 12px">SwiftScan sign-in</h2><p>Your sign-in code is:</p><p style="font-size:32px;font-weight:800;letter-spacing:6px;margin:8px 0">${escapeHtml(code)}</p><p style="color:#555">It expires in 10 minutes. If you didn't ask for this, you can ignore this email.</p></div>`;
+  const html = `<div style="font-family:system-ui,sans-serif;max-width:420px"><h2 style="margin:0 0 12px">SwiftScan sign-in</h2><p>Your sign-in code is:</p><p style="font-size:32px;font-weight:800;letter-spacing:6px;margin:8px 0;color:${BRAND_BUTTON}">${escapeHtml(code)}</p><p style="color:#555">It expires in 10 minutes. If you didn't ask for this, you can ignore this email.</p></div>`;
   return { subject, text, html };
 }
 function registerAuthRoutes(app2) {
@@ -730,9 +734,9 @@ function buildAlertEmail(email, alert, est, origin) {
 <h2 style="margin:0 0 8px">Price alert</h2>
 <p><strong>${escapeHtml(alert.productName)}</strong> now looks to be around <strong>${money(est.price)}</strong>${est.retailer ? ` at ${escapeHtml(est.retailer)}` : ""} (estimate), at or below your target of ${money(alert.targetPrice)}.</p>
 <p style="color:#555;font-size:13px">This is an AI/web-search estimate, not a live store price. Check the price at the store before you buy.</p>
-<p><a href="${escapeHtml(link)}" style="display:inline-block;background:#e11d74;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:700">Look it up on Amazon</a></p>
+<p><a href="${escapeHtml(link)}" style="display:inline-block;background:${BRAND_BUTTON};color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:700">Look it up on Amazon</a></p>
 ${disclosure ? `<p style="color:#777;font-size:12px">${disclosure}</p>` : ""}
-<p style="color:#777;font-size:12px">You're getting this because you set a price alert in SwiftScan. <a href="${escapeHtml(unsub)}">Stop this alert</a></p>
+<p style="color:#777;font-size:12px">You're getting this because you set a price alert in SwiftScan. <a href="${escapeHtml(unsub)}" style="color:${BRAND_LINK}">Stop this alert</a></p>
 </div>`;
   return { subject, text, html };
 }
@@ -913,7 +917,7 @@ function registerAlertRoutes(app2, estimate) {
     if (!readUnsubToken(token)) {
       return res.status(400).send(page("That link isn't valid", "This stop-alert link is invalid or expired. You can remove alerts inside SwiftScan."));
     }
-    return res.send(page("Stop this price alert?", "", `<form method="POST" action="/api/alerts/unsubscribe"><input type="hidden" name="t" value="${escapeHtml(token)}"><button style="padding:10px 16px;border-radius:10px;border:0;background:#e11d74;color:#fff;font-weight:700">Stop alert</button></form>`));
+    return res.send(page("Stop this price alert?", "", `<form method="POST" action="/api/alerts/unsubscribe"><input type="hidden" name="t" value="${escapeHtml(token)}"><button style="padding:10px 16px;border-radius:10px;border:0;background:${BRAND_BUTTON};color:#fff;font-weight:700">Stop alert</button></form>`));
   });
   app2.post(["/api/alerts/unsubscribe", "/api/alerts/unsubscribe/"], async (req, res) => {
     const t = readUnsubToken(String(req.body?.t || req.query.t || ""));
@@ -945,7 +949,7 @@ function registerAlertRoutes(app2, estimate) {
   });
 }
 function page(title, body, extraHtml = "") {
-  return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} - SwiftScan</title><body style="font-family:system-ui,sans-serif;max-width:440px;margin:15vh auto;padding:0 20px"><h2>${escapeHtml(title)}</h2>${body ? `<p>${escapeHtml(body)}</p>` : ""}${extraHtml}<p><a href="/">Back to SwiftScan</a></p></body>`;
+  return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} - SwiftScan</title><body style="font-family:system-ui,sans-serif;max-width:440px;margin:15vh auto;padding:0 20px"><h2>${escapeHtml(title)}</h2>${body ? `<p>${escapeHtml(body)}</p>` : ""}${extraHtml}<p><a href="/" style="color:${BRAND_LINK}">Back to SwiftScan</a></p></body>`;
 }
 
 // server.ts

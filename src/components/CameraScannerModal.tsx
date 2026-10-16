@@ -406,7 +406,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-3 px-4 bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-lg shadow-pink-600/30 flex items-center justify-center gap-2"
+                    className="w-full py-3 px-4 bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-lg shadow-pink-600/30 flex items-center justify-center gap-2"
                   >
                     <ImageIcon size={18} />
                     <span>Upload Photo from Gallery</span>
@@ -446,7 +446,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                 {/* Viewfinder Target Frame (when not analyzing) */}
                 {!isLoading && !snapshotPreview && (
                   <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-8">
-                    <div className="relative w-64 h-64 border-2 border-dashed border-pink-400/70 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(99,102,241,0.2)]">
+                    <div className="relative w-64 h-64 border-2 border-dashed border-pink-400/70 rounded-3xl overflow-hidden shadow-[0_0_50px_color-mix(in_srgb,var(--color-pink-600)_20%,transparent)]">
                       {/* Corner Reticles */}
                       <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-pink-500 rounded-tl-xl" />
                       <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-pink-500 rounded-tr-xl" />
@@ -457,7 +457,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                       <motion.div
                         animate={{ y: ['0%', '240%', '0%'] }}
                         transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-                        className="w-full h-1 bg-gradient-to-r from-transparent via-pink-400 to-transparent shadow-[0_0_15px_#6366f1]"
+                        className="w-full h-1 bg-gradient-to-r from-transparent via-pink-400 to-transparent shadow-[0_0_15px_var(--color-pink-500)]"
                       />
                     </div>
                     <p className="mt-4 text-xs font-medium text-zinc-300 bg-black/60 px-3.5 py-1.5 rounded-full backdrop-blur-md border border-white/10 shadow-lg">
@@ -476,7 +476,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                   initial={{ y: '-10%' }}
                   animate={{ y: ['-10%', '110%', '-10%'] }}
                   transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-                  className="absolute left-0 right-0 h-1.5 bg-gradient-to-r from-transparent via-pink-400 to-transparent shadow-[0_0_35px_12px_rgba(99,102,241,0.5)] z-10"
+                  className="absolute left-0 right-0 h-1.5 bg-gradient-to-r from-transparent via-pink-400 to-transparent shadow-[0_0_35px_12px_color-mix(in_srgb,var(--color-pink-500)_50%,transparent)] z-10"
                 />
                 
                 <div className="relative w-16 h-16 mb-4 z-20">
@@ -542,7 +542,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
               type="button"
               disabled={isLoading || (!!cameraError && !snapshotPreview)}
               onClick={capturePhoto}
-              className="relative p-1 bg-gradient-to-r from-pink-500 via-violet-500 to-pink-500 rounded-full shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-40"
+              className="relative p-1 bg-gradient-to-r from-pink-600 via-pink-400 to-pink-700 rounded-full shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-40"
               title="Take Photo of Product"
             >
               <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center border-4 border-zinc-950">

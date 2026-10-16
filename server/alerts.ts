@@ -11,6 +11,7 @@ import { getStore } from "./db";
 import { accountsEnabled, getAffiliateConfig, proRecordActive, type ProRecord } from "./monetization";
 import { readSessionEmail } from "./auth";
 import { clean, hmac, safeEqual, appOrigin, hashShort, escapeHtml, sendEmail, normalizeEmail } from "./util";
+import { BRAND_BUTTON, BRAND_LINK } from "./brand";
 
 export interface PriceEstimate {
   price: number;
@@ -107,9 +108,9 @@ export function buildAlertEmail(email: string, alert: Alert, est: PriceEstimate,
 <h2 style="margin:0 0 8px">Price alert</h2>
 <p><strong>${escapeHtml(alert.productName)}</strong> now looks to be around <strong>${money(est.price)}</strong>${est.retailer ? ` at ${escapeHtml(est.retailer)}` : ""} (estimate), at or below your target of ${money(alert.targetPrice)}.</p>
 <p style="color:#555;font-size:13px">This is an AI/web-search estimate, not a live store price. Check the price at the store before you buy.</p>
-<p><a href="${escapeHtml(link)}" style="display:inline-block;background:#e11d74;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:700">Look it up on Amazon</a></p>
+<p><a href="${escapeHtml(link)}" style="display:inline-block;background:${BRAND_BUTTON};color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:700">Look it up on Amazon</a></p>
 ${disclosure ? `<p style="color:#777;font-size:12px">${disclosure}</p>` : ""}
-<p style="color:#777;font-size:12px">You're getting this because you set a price alert in SwiftScan. <a href="${escapeHtml(unsub)}">Stop this alert</a></p>
+<p style="color:#777;font-size:12px">You're getting this because you set a price alert in SwiftScan. <a href="${escapeHtml(unsub)}" style="color:${BRAND_LINK}">Stop this alert</a></p>
 </div>`;
   return { subject, text, html };
 }
@@ -335,7 +336,7 @@ export function registerAlertRoutes(app: Express, estimate: PriceEstimator) {
     if (!readUnsubToken(token)) {
       return res.status(400).send(page("That link isn't valid", "This stop-alert link is invalid or expired. You can remove alerts inside SwiftScan."));
     }
-    return res.send(page("Stop this price alert?", "", `<form method="POST" action="/api/alerts/unsubscribe"><input type="hidden" name="t" value="${escapeHtml(token)}"><button style="padding:10px 16px;border-radius:10px;border:0;background:#e11d74;color:#fff;font-weight:700">Stop alert</button></form>`));
+    return res.send(page("Stop this price alert?", "", `<form method="POST" action="/api/alerts/unsubscribe"><input type="hidden" name="t" value="${escapeHtml(token)}"><button style="padding:10px 16px;border-radius:10px;border:0;background:${BRAND_BUTTON};color:#fff;font-weight:700">Stop alert</button></form>`));
   });
 
   app.post(["/api/alerts/unsubscribe", "/api/alerts/unsubscribe/"], async (req, res) => {
@@ -371,5 +372,5 @@ export function registerAlertRoutes(app: Express, estimate: PriceEstimator) {
 }
 
 function page(title: string, body: string, extraHtml = ""): string {
-  return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} - SwiftScan</title><body style="font-family:system-ui,sans-serif;max-width:440px;margin:15vh auto;padding:0 20px"><h2>${escapeHtml(title)}</h2>${body ? `<p>${escapeHtml(body)}</p>` : ""}${extraHtml}<p><a href="/">Back to SwiftScan</a></p></body>`;
+  return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} - SwiftScan</title><body style="font-family:system-ui,sans-serif;max-width:440px;margin:15vh auto;padding:0 20px"><h2>${escapeHtml(title)}</h2>${body ? `<p>${escapeHtml(body)}</p>` : ""}${extraHtml}<p><a href="/" style="color:${BRAND_LINK}">Back to SwiftScan</a></p></body>`;
 }
