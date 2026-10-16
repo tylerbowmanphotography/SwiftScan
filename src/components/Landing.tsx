@@ -136,7 +136,7 @@ export function Hero({ onOpenScanner, onOpenSearch }: HeroProps) {
               <span className="absolute right-0 top-0 h-7 w-7 rounded-tr-xl border-r-4 border-t-4 border-white/90" />
               <span className="absolute bottom-0 left-0 h-7 w-7 rounded-bl-xl border-b-4 border-l-4 border-white/90" />
               <span className="absolute bottom-0 right-0 h-7 w-7 rounded-br-xl border-b-4 border-r-4 border-white/90" />
-              <span className="absolute left-2 right-2 h-0.5 animate-scan rounded-full bg-gradient-to-r from-transparent via-pink-300 to-transparent shadow-[0_0_18px_4px_rgba(129,140,248,0.7)]" />
+              <span className="absolute left-2 right-2 h-0.5 animate-scan rounded-full bg-gradient-to-r from-transparent via-pink-300 to-transparent shadow-[0_0_18px_4px_color-mix(in_srgb,var(--color-pink-300)_70%,transparent)]" />
             </div>
 
             {/* illustrative verdict chip */}

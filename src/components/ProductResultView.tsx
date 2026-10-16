@@ -168,9 +168,9 @@ export const ProductResultView: React.FC<ProductResultViewProps> = ({
         };
       case 'GOOD_DEAL':
         return {
-          bg: 'bg-pink-500/10 border-pink-500/30 text-pink-600 dark:text-pink-400',
+          bg: 'bg-pink-500/10 border-pink-500/30 text-pink-700 dark:text-pink-300',
           label: 'Good Deal 👍',
-          gradient: 'from-pink-500 to-violet-600',
+          gradient: 'from-pink-600 to-pink-800',
         };
       case 'FAIR':
         return {
@@ -252,7 +252,7 @@ Summary: ${result.summary}`;
     <div className="w-full max-w-3xl mx-auto space-y-6 pb-24">
       <AdBanner />
       {/* Top Banner Card with Image & Title */}
-      <div className="ss-card rounded-3xl p-6 relative overflow-hidden"><div aria-hidden className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-pink-500 via-violet-500 to-emerald-400" />
+      <div className="ss-card rounded-3xl p-6 relative overflow-hidden"><div aria-hidden className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-pink-600 via-pink-400 to-emerald-400" />
         <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
           {(capturedImageUrl || ident?.imageUrl) ? (
             <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200 dark:border-slate-700 shadow-inner group">
@@ -452,10 +452,10 @@ Summary: ${result.summary}`;
           </div>
 
           <div className="p-4 bg-pink-50/60 dark:bg-pink-950/40 rounded-2xl border border-pink-100 dark:border-pink-900/50 text-center">
-            <span className="text-[11px] font-bold text-pink-600 dark:text-pink-400 uppercase tracking-wider block mb-1">
+            <span className="text-[11px] font-bold text-pink-700 dark:text-pink-300 uppercase tracking-wider block mb-1">
               Target (Lowest)
             </span>
-            <span className="text-base sm:text-xl font-bold text-pink-600 dark:text-pink-400">
+            <span className="text-base sm:text-xl font-bold text-pink-700 dark:text-pink-300">
               {formatCurrency(result.goodPrice)}
             </span>
           </div>
@@ -575,7 +575,7 @@ Summary: ${result.summary}`;
                 </div>
               </div>
 
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-pink-50 dark:bg-pink-950/60 text-pink-600 dark:text-pink-300 border border-pink-200 dark:border-pink-800 text-xs font-bold shrink-0">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-pink-800 text-xs font-bold shrink-0">
                 <Sparkles size={13} className="text-pink-600 dark:text-pink-400 animate-pulse" />
                 <span>Powered by Gemini 3.6 Flash</span>
               </span>
@@ -668,7 +668,7 @@ Summary: ${result.summary}`;
                 </div>
               </div>
 
-              <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-pink-50 dark:bg-pink-950/60 text-pink-600 dark:text-pink-300 border border-pink-200 dark:border-pink-800 text-xs font-bold">
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-pink-800 text-xs font-bold">
                 <Sparkles size={13} className="text-pink-600 dark:text-pink-400" />
                 <span>Gemini 3.6 Flash</span>
               </span>
@@ -686,7 +686,7 @@ Summary: ${result.summary}`;
                     type="button"
                     onClick={() => handleAskQuestion(sq)}
                     disabled={isAsking}
-                    className="px-3 py-2 bg-slate-50 dark:bg-slate-800/80 hover:bg-pink-50 dark:hover:bg-pink-950/50 hover:text-pink-600 dark:hover:text-pink-400 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold border border-slate-200/80 dark:border-slate-700/80 transition-all text-left flex items-center gap-1.5 disabled:opacity-50"
+                    className="px-3 py-2 bg-slate-50 dark:bg-slate-800/80 hover:bg-pink-50 dark:hover:bg-pink-950/50 hover:text-pink-700 dark:hover:text-pink-300 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold border border-slate-200/80 dark:border-slate-700/80 transition-all text-left flex items-center gap-1.5 disabled:opacity-50"
                   >
                     <MessageSquare size={13} className="text-pink-600 dark:text-pink-400 shrink-0" />
                     <span>{sq}</span>
@@ -726,7 +726,7 @@ Summary: ${result.summary}`;
                         }`}
                       >
                         {msg.sender === 'gemini' && (
-                          <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-pink-600 dark:text-pink-400 pb-1 mb-1 border-b border-slate-200/60 dark:border-slate-700/60">
+                          <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-pink-700 dark:text-pink-300 pb-1 mb-1 border-b border-slate-200/60 dark:border-slate-700/60">
                             <Sparkles size={12} />
                             <span>Google Gemini AI</span>
                           </div>
@@ -746,7 +746,7 @@ Summary: ${result.summary}`;
 
               {/* LOADING INDICATOR */}
               {isAsking && (
-                <div className="flex items-center gap-3 p-4 bg-pink-50/60 dark:bg-pink-950/30 rounded-2xl border border-pink-100 dark:border-pink-900/40 text-xs font-semibold text-pink-600 dark:text-pink-400">
+                <div className="flex items-center gap-3 p-4 bg-pink-50/60 dark:bg-pink-950/30 rounded-2xl border border-pink-100 dark:border-pink-900/40 text-xs font-semibold text-pink-700 dark:text-pink-300">
                   <Loader2 size={18} className="animate-spin text-pink-600" />
                   <span>Google Gemini is analyzing specifications and reviews to answer...</span>
                 </div>
@@ -809,7 +809,7 @@ Summary: ${result.summary}`;
 
               {result.reviewSentiment && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-pink-50 dark:bg-pink-950/50 text-pink-600 dark:text-pink-400 border border-pink-100 dark:border-pink-900/50">
+                  <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-pink-50 dark:bg-pink-950/50 text-pink-700 dark:text-pink-300 border border-pink-100 dark:border-pink-900/50">
                     Sentiment (est.): {result.reviewSentiment.replace(/_/g, ' ')}
                   </span>
                 </div>
@@ -898,7 +898,7 @@ Summary: ${result.summary}`;
                       {item.retailer}
                     </span>
                     {item.dealTag && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-pink-50 dark:bg-pink-950 text-pink-600 dark:text-pink-400 border border-pink-100 dark:border-pink-900/50">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-pink-50 dark:bg-pink-950 text-pink-700 dark:text-pink-300 border border-pink-100 dark:border-pink-900/50">
                         {item.dealTag}
                       </span>
                     )}
@@ -950,15 +950,15 @@ Summary: ${result.summary}`;
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={(val) => `$${val}`} />
                   <Tooltip
                     contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
-                    itemStyle={{ color: '#6366f1', fontWeight: 'bold' }}
+                    itemStyle={{ color: 'var(--color-pink-600)', fontWeight: 'bold' }}
                     formatter={(value: number) => [formatCurrency(value), 'Price']}
                   />
                   <Line
                     type="monotone"
                     dataKey="price"
-                    stroke="#6366f1"
+                    stroke="var(--color-pink-600)"
                     strokeWidth={3}
-                    dot={{ fill: '#6366f1', strokeWidth: 2, r: 4, stroke: '#fff' }}
+                    dot={{ fill: 'var(--color-pink-600)', strokeWidth: 2, r: 4, stroke: '#fff' }}
                     activeDot={{ r: 6, strokeWidth: 0 }}
                   />
                 </LineChart>
@@ -977,7 +977,7 @@ Summary: ${result.summary}`;
               <span>Local Retailers Nearby</span>
             </h3>
             {isFetchingStores && (
-              <span className="flex items-center gap-1.5 text-xs text-pink-600 font-medium">
+              <span className="flex items-center gap-1.5 text-xs text-pink-700 dark:text-pink-300 font-medium">
                 <Loader2 size={14} className="animate-spin" /> Fetching map data...
               </span>
             )}
@@ -1049,7 +1049,7 @@ Summary: ${result.summary}`;
                 href={`https://www.google.com/search?q=${encodeURIComponent(result.productName + ' reviews')}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-block font-bold text-pink-600 dark:text-pink-400 underline"
+                className="inline-block font-bold text-pink-700 dark:text-pink-300 underline"
               >
                 Search reviews for this product
               </a>

@@ -213,7 +213,7 @@ export const ReportIncorrectScanModal: React.FC<ReportIncorrectScanModalProps> =
                 <button
                   type="submit"
                   disabled={!correctNameInput.trim()}
-                  className="w-full py-3.5 bg-gradient-to-r from-pink-600 to-violet-600 hover:from-pink-500 hover:to-violet-500 disabled:opacity-50 text-white font-black text-xs rounded-2xl shadow-lg shadow-pink-600/20 flex items-center justify-center gap-2 transition-all active:scale-98"
+                  className="w-full py-3.5 bg-gradient-to-r from-pink-700 to-pink-800 hover:from-pink-600 hover:to-pink-700 disabled:opacity-50 text-white font-black text-xs rounded-2xl shadow-lg shadow-pink-700/25 flex items-center justify-center gap-2 transition-all active:scale-98"
                 >
                   <Sparkles size={16} />
                   <span>Submit Correction & Re-Analyze Item</span>

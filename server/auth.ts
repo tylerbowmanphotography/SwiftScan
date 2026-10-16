@@ -9,6 +9,7 @@ import {
   clean, hmac, safeEqual, readCookie, setCookie, clearCookie, clientIp, hashShort, normalizeEmail,
   escapeHtml, isEmailConfigured, sendEmail,
 } from "./util";
+import { BRAND_BUTTON } from "./brand";
 
 const SESSION_COOKIE = "ss_sess";
 const SESSION_DAYS = 30;
@@ -76,7 +77,7 @@ async function rateLimited(key: string, max: number, ttlSec: number): Promise<bo
 function codeEmail(code: string) {
   const subject = `Your SwiftScan sign-in code: ${code}`;
   const text = `Your SwiftScan sign-in code is ${code}. It expires in 10 minutes.\n\nIf you didn't ask for this, you can ignore this email.`;
-  const html = `<div style="font-family:system-ui,sans-serif;max-width:420px"><h2 style="margin:0 0 12px">SwiftScan sign-in</h2><p>Your sign-in code is:</p><p style="font-size:32px;font-weight:800;letter-spacing:6px;margin:8px 0">${escapeHtml(code)}</p><p style="color:#555">It expires in 10 minutes. If you didn't ask for this, you can ignore this email.</p></div>`;
+  const html = `<div style="font-family:system-ui,sans-serif;max-width:420px"><h2 style="margin:0 0 12px">SwiftScan sign-in</h2><p>Your sign-in code is:</p><p style="font-size:32px;font-weight:800;letter-spacing:6px;margin:8px 0;color:${BRAND_BUTTON}">${escapeHtml(code)}</p><p style="color:#555">It expires in 10 minutes. If you didn't ask for this, you can ignore this email.</p></div>`;
   return { subject, text, html };
 }
 

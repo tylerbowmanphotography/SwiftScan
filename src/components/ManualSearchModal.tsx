@@ -128,7 +128,7 @@ export const ManualSearchModal: React.FC<ManualSearchModalProps> = ({
                        onSearch(sug);
                        setSuggestions([]);
                      }}
-                     className="w-full text-left px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-pink-50 dark:hover:bg-pink-900/30 hover:text-pink-600 dark:hover:text-pink-400 font-medium transition-colors flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/50 last:border-0"
+                     className="w-full text-left px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-pink-50 dark:hover:bg-pink-900/30 hover:text-pink-700 dark:hover:text-pink-300 font-medium transition-colors flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/50 last:border-0"
                    >
                      <Search size={14} className="opacity-50" />
                      {sug}
@@ -159,7 +159,7 @@ export const ManualSearchModal: React.FC<ManualSearchModalProps> = ({
                     setQuery(item);
                     onSearch(item);
                   }}
-                  className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-pink-50 dark:hover:bg-pink-950/50 hover:text-pink-600 dark:hover:text-pink-400 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold border border-slate-200/60 dark:border-slate-700/60 transition-all"
+                  className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-pink-50 dark:hover:bg-pink-950/50 hover:text-pink-700 dark:hover:text-pink-300 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold border border-slate-200/60 dark:border-slate-700/60 transition-all"
                 >
                   {item}
                 </button>

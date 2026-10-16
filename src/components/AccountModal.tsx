@@ -87,7 +87,7 @@ export function AccountModal({ open, user, paidEnabled, reason, onClose, onAuthC
 
         {user ? (
           <>
-            <div className="flex items-center gap-2 text-pink-500 text-xs font-extrabold uppercase tracking-widest">
+            <div className="flex items-center gap-2 text-pink-700 dark:text-pink-300 text-xs font-extrabold uppercase tracking-widest">
               <Mail size={14} /> Your account
             </div>
             <p className="text-sm text-slate-700 dark:text-slate-200 break-all font-semibold">{user.email}</p>
@@ -111,7 +111,7 @@ export function AccountModal({ open, user, paidEnabled, reason, onClose, onAuthC
           </>
         ) : (
           <>
-            <div className="flex items-center gap-2 text-pink-500 text-xs font-extrabold uppercase tracking-widest">
+            <div className="flex items-center gap-2 text-pink-700 dark:text-pink-300 text-xs font-extrabold uppercase tracking-widest">
               <Mail size={14} /> Sign in
             </div>
             <h3 className="text-xl font-black text-slate-900 dark:text-white">Sign in with your email</h3>

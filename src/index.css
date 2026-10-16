@@ -2,31 +2,33 @@
 
 /*
  * SwiftScan design tokens.
- * Existing components use the `pink-*` utility names for the brand accent, so the brand
- * scale is defined here once (a vivid indigo) and every component picks it up.
+ * Components use the `pink-*` utility names, so the brand scale lives here once.
+ * Primary actions are pink-600 (#db2777). Small text on light or tinted surfaces
+ * uses pink-700 (#be185d) so it stays at or above WCAG AA 4.5:1.
+ * Change these hex values to recolor the app.
  */
 @theme {
   --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-display: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  --color-pink-50: #eef2ff;
-  --color-pink-100: #e0e7ff;
-  --color-pink-200: #c7d2fe;
-  --color-pink-300: #a5b4fc;
-  --color-pink-400: #818cf8;
-  --color-pink-500: #6366f1;
-  --color-pink-600: #4f46e5;
-  --color-pink-700: #4338ca;
-  --color-pink-800: #3730a3;
-  --color-pink-900: #312e81;
-  --color-pink-950: #1e1b4b;
+  --color-pink-50: #fdf2f8;
+  --color-pink-100: #fce7f3;
+  --color-pink-200: #fbcfe8;
+  --color-pink-300: #f9a8d4;
+  --color-pink-400: #f472b6;
+  --color-pink-500: #ec4899;
+  --color-pink-600: #db2777;
+  --color-pink-700: #be185d;
+  --color-pink-800: #9d174d;
+  --color-pink-900: #831843;
+  --color-pink-950: #500724;
 
   --color-ink-950: #070b19;
   --color-ink-900: #0b1124;
   --color-ink-800: #121a33;
 
   --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -6px rgba(15, 23, 42, 0.08);
-  --shadow-lift: 0 2px 4px rgba(15, 23, 42, 0.05), 0 18px 40px -12px rgba(79, 70, 229, 0.22);
+  --shadow-lift: 0 2px 4px rgba(15, 23, 42, 0.05), 0 18px 40px -12px color-mix(in srgb, var(--color-pink-600) 22%, transparent);
 
   --animate-float: float 6s ease-in-out infinite;
   --animate-scan: scan 2.8s ease-in-out infinite;
@@ -47,8 +49,8 @@
     to { opacity: 1; transform: translateY(0); }
   }
   @keyframes pulse-ring {
-    0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.5); }
-    80%, 100% { box-shadow: 0 0 0 18px rgba(99, 102, 241, 0); }
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-pink-600) 50%, transparent); }
+    80%, 100% { box-shadow: 0 0 0 18px color-mix(in srgb, var(--color-pink-600) 0%, transparent); }
   }
 }
 
@@ -62,7 +64,7 @@
     font-family: var(--font-sans);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     background-image:
-      radial-gradient(60rem 28rem at 85% -10%, rgba(99, 102, 241, 0.10), transparent 60%),
+      radial-gradient(60rem 28rem at 85% -10%, color-mix(in srgb, var(--color-pink-600) 10%, transparent), transparent 60%),
       radial-gradient(40rem 24rem at -10% 10%, rgba(16, 185, 129, 0.06), transparent 60%);
     background-attachment: fixed;
   }
@@ -71,7 +73,7 @@
     font-size: max(16px, 1em);
   }
   :focus-visible {
-    outline: 2px solid var(--color-pink-500);
+    outline: 2px solid var(--color-pink-600);
     outline-offset: 2px;
   }
   h1, h2, h3 {
@@ -93,9 +95,9 @@
   .ss-btn-primary {
     @apply inline-flex items-center justify-center gap-2.5 rounded-2xl text-white font-extrabold
            shadow-lg shadow-pink-600/30 transition-all duration-200
-           hover:shadow-pink-500/45 hover:brightness-110 active:scale-[0.97]
+           hover:shadow-pink-700/40 hover:brightness-95 active:scale-[0.97]
            disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100;
-    background-image: linear-gradient(135deg, var(--color-pink-500), var(--color-pink-700));
+    background-image: linear-gradient(135deg, var(--color-pink-600), var(--color-pink-800));
   }
   .ss-btn-secondary {
     @apply inline-flex items-center justify-center gap-2.5 rounded-2xl font-bold transition-all duration-200 active:scale-[0.97]
@@ -124,8 +126,8 @@
 /* Custom Scrollbar Styling */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 9999px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.6); }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--color-pink-600) 30%, transparent); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--color-pink-600) 60%, transparent); }
 
 /* Utility for hiding scrollbar when needed */
 .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }

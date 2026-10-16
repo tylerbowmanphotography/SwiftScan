@@ -40,7 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
           className="group flex items-center gap-2.5"
           aria-label="SwiftScan home"
         >
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-pink-700 text-white shadow-lg shadow-pink-600/30 transition-transform group-hover:scale-105">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-pink-600 to-pink-800 text-white shadow-lg shadow-pink-600/30 transition-transform group-hover:scale-105">
             <ScanBarcode size={22} aria-hidden />
           </span>
           <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
