@@ -1036,6 +1036,7 @@ var GEMINI_MODELS = [
 ].filter((m, i, arr) => !!m && arr.indexOf(m) === i);
 var lastGeminiError = "";
 var AI_BUDGET_MS = 5e4;
+var SCAN_CACHE_SECONDS = 12 * 3600;
 var AI_PER_MODEL_MS = 25e3;
 async function generateWithFallback(params, opts = {}) {
   const ai = getGeminiClient();
@@ -1234,6 +1235,30 @@ async function lookupBarcode(variants) {
   }
   return { product: null, incomplete: errors.length > 0, errors };
 }
+var WEB_LOOKUP_SOURCE = "Web search";
+async function identifyBarcodeOnWeb(code, deadline) {
+  if (!resolveGeminiKey().key) return null;
+  const prompt = `Search the web for the retail product barcode (UPC/EAN/GTIN) ${code}.
+Only answer with a product if you find a page (retailer, manufacturer or barcode database) that lists exactly this number ${code} for that product.
+Reply with ONLY this JSON, no other text:
+{"found": true or false, "name": "full product name with size/variant", "brand": "brand", "category": "short category", "evidence": "domain of the page that lists ${code}"}
+If you cannot find this exact number, reply {"found": false}.`;
+  try {
+    const text = await generateWithFallback({ contents: prompt, config: { tools: [{ googleSearch: {} }] } }, { deadline, perModelMs: 15e3 });
+    const j = extractAndParseJSON(text);
+    const name = typeof j?.name === "string" ? j.name.trim() : "";
+    if (j?.found !== true || name.length < 3 || !j?.evidence) return null;
+    return {
+      name,
+      brand: typeof j.brand === "string" && j.brand.trim() ? j.brand.trim() : void 0,
+      category: typeof j.category === "string" && j.category.trim() ? j.category.trim() : void 0,
+      source: WEB_LOOKUP_SOURCE
+    };
+  } catch (err) {
+    console.warn(`Web barcode lookup failed for ${code}:`, err?.message || err);
+    return null;
+  }
+}
 function normalizeProductScanResult(raw, fallbackQuery, identification, groundTruth) {
   if (!raw || typeof raw !== "object") {
     throw new Error("AI response was not a product object");
@@ -1393,6 +1418,13 @@ app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {
     normalizedCode = norm.code;
     const outcome = await lookupBarcode(norm.variants);
     if (!outcome.product) {
+      const web = await identifyBarcodeOnWeb(norm.code, startedAt + 22e3);
+      if (web) {
+        outcome.product = web;
+        console.log(`Barcode ${norm.code} not in databases; matched by web search: ${web.name}`);
+      }
+    }
+    if (!outcome.product) {
       console.log(`Barcode ${norm.code} not found. Lookup issues: ${outcome.errors.join("; ") || "none"}`);
       return res.json({
         success: true,
@@ -1405,7 +1437,8 @@ app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {
     groundTruth = outcome.product;
     console.log(`Barcode '${norm.code}' found in ${groundTruth.source}:`, groundTruth.name);
   }
-  const method = correctionHint ? "correction" : hasPhoto ? "photo" : groundTruth ? "database" : "search";
+  const webMatched = groundTruth?.source === WEB_LOOKUP_SOURCE;
+  const method = correctionHint ? "correction" : hasPhoto ? "photo" : groundTruth && !webMatched ? "database" : "search";
   const identification = {
     method,
     verified: method === "database",
@@ -1421,7 +1454,7 @@ Analyze that exact product ('${correctionHint}'). Return productName as '${corre
 Read all visible text, brand logos, model numbers, packaging details, tags and labels.
 Identify the EXACT, SPECIFIC product shown. If you cannot read enough to be sure, say so in the summary and set a LOW confidence (below 0.5). Never invent a brand or model that is not visible.`;
   } else if (groundTruth) {
-    promptInstruction = `The product has ALREADY been positively identified from the barcode database (${groundTruth.source}), UPC ${normalizedCode}:
+    promptInstruction = `The product has ALREADY been identified from its barcode (source: ${groundTruth.source}), UPC ${normalizedCode}:
 - Title: ${groundTruth.name}
 - Brand: ${groundTruth.brand || "(not listed)"}
 - Category: ${groundTruth.category || "(not listed)"}
@@ -1456,6 +1489,16 @@ Return ONLY a valid JSON object (no markdown) with this exact structure:
 
 Rules: prices are USD numbers and are estimates; only include specs you are confident about. Do NOT include customer ratings, review counts or review quotes. If you are not sure about a value, leave it out rather than inventing it.`;
   const queryTerm = correctionHint || groundTruth?.name || textQuery || "Scanned Item";
+  const cacheKey = !hasPhoto && !correctionHint ? `scancache:v1:${normalizedCode ? "b:" + normalizedCode : "q:" + hashShort(String(textQuery || "").trim().toLowerCase(), 32)}` : null;
+  const cache = cacheKey ? getStore() : null;
+  if (cache && cacheKey) {
+    try {
+      const hit = await cache.get(cacheKey);
+      if (hit?.productName) return res.json({ success: true, found: true, data: hit, cached: true });
+    } catch (err) {
+      console.warn("Scan cache read failed:", err?.message || err);
+    }
+  }
   if (!resolveGeminiKey().key) {
     return res.status(503).json({
       success: false,
@@ -1494,6 +1537,9 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
       try {
         const parsed = extractAndParseJSON(responseText);
         const normalized = normalizeProductScanResult(parsed, queryTerm, identification, groundTruth);
+        if (cache && cacheKey) {
+          await cache.set(cacheKey, normalized, { ex: SCAN_CACHE_SECONDS }).catch((err) => console.warn("Scan cache write failed:", err?.message || err));
+        }
         return res.json({ success: true, found: true, data: normalized });
       } catch (jsonErr) {
         console.warn("JSON parse error:", jsonErr);

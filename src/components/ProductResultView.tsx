@@ -395,7 +395,7 @@ Summary: ${result.summary}`;
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                {isDbVerified ? 'Identified from barcode database' : isPhotoId ? 'Identified by AI from your photo (unverified)' : ident?.method === 'search' || ident?.method === 'correction' ? 'Product from your search' : 'Identification not verified'}
+                {isDbVerified ? 'Identified from barcode database' : ident?.source === 'Web search' ? 'Matched from the barcode by web search (unverified)' : isPhotoId ? 'Identified by AI from your photo (unverified)' : ident?.method === 'search' || ident?.method === 'correction' ? 'Product from your search' : 'Identification not verified'}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 {isDbVerified
