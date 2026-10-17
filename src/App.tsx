@@ -56,6 +56,13 @@ export default function App() {
 
   const [currentScanResult, setCurrentScanResult] = useState<ProductScanResult | null>(null);
   const [unidentified, setUnidentified] = useState<UnidentifiedBarcode | null>(null);
+  // Last barcode the databases didn't know; sent with the next photo/search so the server learns it.
+  const pendingBarcode = useRef<{ code: string; at: number } | null>(null);
+  const takePendingBarcode = () => {
+    const p = pendingBarcode.current;
+    pendingBarcode.current = null; // one follow-up scan only, so it can't attach to an unrelated item later
+    return p && Date.now() - p.at < 10 * 60_000 ? p.code : undefined;
+  };
   const [lastCapturedImage, setLastCapturedImage] = useState<string | undefined>(undefined);
 
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -255,6 +262,7 @@ export default function App() {
       const res = await scanFetch({
           imageBase64: optimized.base64Data,
           mimeType: optimized.mimeType,
+          linkBarcode: takePendingBarcode(),
         });
 
       // 3. Response Handling with Explicit Error Details
@@ -312,7 +320,7 @@ export default function App() {
       const cleanedQuery = validateSearchQuery(textQuery);
 
       // 2. Send API Request
-      const res = await scanFetch({ textQuery: cleanedQuery });
+      const res = await scanFetch({ textQuery: cleanedQuery, linkBarcode: takePendingBarcode() });
 
       // 3. Response Handling
       if (!res.ok) {
@@ -398,6 +406,7 @@ export default function App() {
       if (data.success && data.found === false) {
         // Real lookup found nothing: do NOT show a guessed product.
         setCurrentScanResult(null);
+        pendingBarcode.current = { code: data.barcode || cleanCode, at: Date.now() };
         setUnidentified({
           barcode: data.barcode || cleanCode,
           message: data.message || "We couldn't identify this barcode.",

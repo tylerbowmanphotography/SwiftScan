@@ -10,7 +10,7 @@ import { useRunScan } from '../lib/useRunScan';
 const POPULAR = ['Sony WH-1000XM5', 'Apple AirPods Pro 2', 'Nintendo Switch OLED', 'KitchenAid Artisan Stand Mixer', 'Dyson V15 Detect', 'Logitech MX Master 3S'];
 
 export default function SearchScreen() {
-  const params = useLocalSearchParams<{ q?: string }>();
+  const params = useLocalSearchParams<{ q?: string; link?: string }>();
   const [query, setQuery] = useState(params.q || '');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loadingSuggest, setLoadingSuggest] = useState(false);
@@ -39,7 +39,8 @@ export default function SearchScreen() {
     Keyboard.dismiss();
     setQuery(q);
     const digits = q.replace(/\s/g, '');
-    run(/^\d{8,14}$/.test(digits) ? { barcode: digits } : { textQuery: q }, /^\d{8,14}$/.test(digits) ? 'barcode' : 'search');
+    const isCode = /^\d{8,14}$/.test(digits);
+    run(isCode ? { barcode: digits } : { textQuery: q, linkBarcode: params.link || undefined }, isCode ? 'barcode' : 'search');
   };
 
   const list = query.trim().length >= 2 ? suggestions : [];

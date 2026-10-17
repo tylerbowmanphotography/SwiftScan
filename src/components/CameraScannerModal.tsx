@@ -33,6 +33,10 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
   const [isFlashOn, setIsFlashOn] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
   const [snapshotPreview, setSnapshotPreview] = useState<string | null>(null);
+  // Back-camera lenses (found after camera permission, when labels are readable). The ultra-wide
+  // lens focuses much closer (macro on iPhone Pro), which helps with small barcodes and labels.
+  const [closeUpLensId, setCloseUpLensId] = useState<string | null>(null);
+  const [closeUp, setCloseUp] = useState(false);
 
   useEffect(() => {
     if (!readerRef.current) {
@@ -55,7 +59,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     return () => {
       stopCamera();
     };
-  }, [isOpen, facingMode]);
+  }, [isOpen, facingMode, closeUp]);
 
   // Keep video source synced with media stream
   useEffect(() => {
@@ -163,9 +167,10 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
 
       let mediaStream: MediaStream;
       try {
+        const useCloseUp = closeUp && facingMode === 'environment' && closeUpLensId;
         mediaStream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: facingMode,
+            ...(useCloseUp ? { deviceId: { exact: closeUpLensId } } : { facingMode: facingMode }),
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
@@ -191,6 +196,15 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         videoRef.current.play().catch((e) => console.warn('Video play error:', e));
+      }
+
+      // Look for an ultra-wide back lens to offer a "Close-up" switch
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const ultra = devices.find((d) => d.kind === 'videoinput' && /ultra ?wide/i.test(d.label) && !/front/i.test(d.label));
+        setCloseUpLensId(ultra ? ultra.deviceId : null);
+      } catch {
+        // ignore: the switch just won't be shown
       }
 
       // Check for torch track support
@@ -461,8 +475,28 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                       />
                     </div>
                     <p className="mt-4 text-xs font-medium text-zinc-300 bg-black/60 px-3.5 py-1.5 rounded-full backdrop-blur-md border border-white/10 shadow-lg">
-                      Snap photo or frame barcode
+                      {closeUp ? 'Close-up: hold the phone a few inches away' : 'Snap photo or frame barcode'}
                     </p>
+                  </div>
+                )}
+
+                {/* Lens switch: normal or close-up (ultra-wide) */}
+                {!isLoading && !snapshotPreview && closeUpLensId && facingMode === 'environment' && (
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex gap-1 rounded-full bg-black/60 p-1 backdrop-blur-md">
+                    {[
+                      { on: false, label: '1×' },
+                      { on: true, label: 'Close-up' },
+                    ].map((o) => (
+                      <button
+                        key={o.label}
+                        type="button"
+                        onClick={() => setCloseUp(o.on)}
+                        aria-pressed={closeUp === o.on}
+                        className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition ${closeUp === o.on ? 'bg-amber-200 text-black' : 'text-white hover:bg-white/10'}`}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
                   </div>
                 )}
               </>
