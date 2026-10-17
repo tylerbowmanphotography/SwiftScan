@@ -6,6 +6,8 @@ import { registerMonetizationRoutes, scanQuota } from "./server/monetization";
 import { registerAuthRoutes } from "./server/auth";
 import { registerAccountRoutes } from "./server/account";
 import { registerAlertRoutes, type PriceEstimate } from "./server/alerts";
+import { getStore } from "./server/db";
+import { hashShort } from "./server/util";
 
 dotenv.config();
 
@@ -48,6 +50,7 @@ let lastGeminiError = "";
 // Vercel stops a function at 60s (vercel.json maxDuration). Keep every AI chain inside that,
 // so a slow model falls through to the next one instead of the whole request timing out.
 const AI_BUDGET_MS = 50_000;
+const SCAN_CACHE_SECONDS = 12 * 3600;
 const AI_PER_MODEL_MS = 25_000;
 
 // Try each model in turn; throws the last error if every model fails or time runs out.
@@ -303,6 +306,34 @@ async function lookupBarcode(variants: string[]): Promise<BarcodeLookupOutcome> 
   return { product: null, incomplete: errors.length > 0, errors };
 }
 
+// Last resort for barcodes missing from the open databases: ask Gemini to find the code on the
+// web (Google Search grounding). Only accepted when the model reports it found the exact code
+// on a product page; the result is shown as unverified ("matched by web search").
+const WEB_LOOKUP_SOURCE = "Web search";
+async function identifyBarcodeOnWeb(code: string, deadline: number): Promise<BarcodeProduct | null> {
+  if (!resolveGeminiKey().key) return null;
+  const prompt = `Search the web for the retail product barcode (UPC/EAN/GTIN) ${code}.
+Only answer with a product if you find a page (retailer, manufacturer or barcode database) that lists exactly this number ${code} for that product.
+Reply with ONLY this JSON, no other text:
+{"found": true or false, "name": "full product name with size/variant", "brand": "brand", "category": "short category", "evidence": "domain of the page that lists ${code}"}
+If you cannot find this exact number, reply {"found": false}.`;
+  try {
+    const text = await generateWithFallback({ contents: prompt, config: { tools: [{ googleSearch: {} }] } }, { deadline, perModelMs: 15_000 });
+    const j = extractAndParseJSON(text);
+    const name = typeof j?.name === "string" ? j.name.trim() : "";
+    if (j?.found !== true || name.length < 3 || !j?.evidence) return null;
+    return {
+      name,
+      brand: typeof j.brand === "string" && j.brand.trim() ? j.brand.trim() : undefined,
+      category: typeof j.category === "string" && j.category.trim() ? j.category.trim() : undefined,
+      source: WEB_LOOKUP_SOURCE,
+    };
+  } catch (err: any) {
+    console.warn(`Web barcode lookup failed for ${code}:`, err?.message || err);
+    return null;
+  }
+}
+
 interface Identification {
   method: "database" | "photo" | "search" | "correction";
   verified: boolean;
@@ -524,6 +555,13 @@ app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {
     // ---- 2. REAL database lookup BEFORE any AI is involved --------------------------------
     const outcome = await lookupBarcode(norm.variants);
     if (!outcome.product) {
+      const web = await identifyBarcodeOnWeb(norm.code, startedAt + 22_000);
+      if (web) {
+        outcome.product = web;
+        console.log(`Barcode ${norm.code} not in databases; matched by web search: ${web.name}`);
+      }
+    }
+    if (!outcome.product) {
       // Never present a guess as verified: report "not identified" so the UI can ask for a photo.
       console.log(`Barcode ${norm.code} not found. Lookup issues: ${outcome.errors.join("; ") || "none"}`);
       return res.json({
@@ -540,7 +578,8 @@ app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {
     console.log(`Barcode '${norm.code}' found in ${groundTruth.source}:`, groundTruth.name);
   }
 
-  const method: Identification["method"] = correctionHint ? "correction" : hasPhoto ? "photo" : groundTruth ? "database" : "search";
+  const webMatched = groundTruth?.source === WEB_LOOKUP_SOURCE;
+  const method: Identification["method"] = correctionHint ? "correction" : hasPhoto ? "photo" : groundTruth && !webMatched ? "database" : "search";
   const identification: Identification = {
     method,
     verified: method === "database",
@@ -558,7 +597,7 @@ Analyze that exact product ('${correctionHint}'). Return productName as '${corre
 Read all visible text, brand logos, model numbers, packaging details, tags and labels.
 Identify the EXACT, SPECIFIC product shown. If you cannot read enough to be sure, say so in the summary and set a LOW confidence (below 0.5). Never invent a brand or model that is not visible.`;
   } else if (groundTruth) {
-    promptInstruction = `The product has ALREADY been positively identified from the barcode database (${groundTruth.source}), UPC ${normalizedCode}:
+    promptInstruction = `The product has ALREADY been identified from its barcode (source: ${groundTruth.source}), UPC ${normalizedCode}:
 - Title: ${groundTruth.name}
 - Brand: ${groundTruth.brand || "(not listed)"}
 - Category: ${groundTruth.category || "(not listed)"}
@@ -595,6 +634,22 @@ Return ONLY a valid JSON object (no markdown) with this exact structure:
 Rules: prices are USD numbers and are estimates; only include specs you are confident about. Do NOT include customer ratings, review counts or review quotes. If you are not sure about a value, leave it out rather than inventing it.`;
 
   const queryTerm = correctionHint || groundTruth?.name || textQuery || "Scanned Item";
+
+  // Repeat lookups of the same barcode or search are answered from a short-lived cache
+  // (prices are estimates anyway), so popular items come back in about a second.
+  // Photos and corrections always get a fresh analysis.
+  const cacheKey = !hasPhoto && !correctionHint
+    ? `scancache:v1:${normalizedCode ? "b:" + normalizedCode : "q:" + hashShort(String(textQuery || "").trim().toLowerCase(), 32)}`
+    : null;
+  const cache = cacheKey ? getStore() : null;
+  if (cache && cacheKey) {
+    try {
+      const hit = await cache.get<any>(cacheKey);
+      if (hit?.productName) return res.json({ success: true, found: true, data: hit, cached: true });
+    } catch (err: any) {
+      console.warn("Scan cache read failed:", err?.message || err);
+    }
+  }
 
   if (!resolveGeminiKey().key) {
     return res.status(503).json({
@@ -641,6 +696,10 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
       try {
         const parsed = extractAndParseJSON(responseText);
         const normalized = normalizeProductScanResult(parsed, queryTerm, identification, groundTruth);
+        if (cache && cacheKey) {
+          // Awaited: a serverless function can be frozen right after it responds.
+          await cache.set(cacheKey, normalized, { ex: SCAN_CACHE_SECONDS }).catch((err: any) => console.warn("Scan cache write failed:", err?.message || err));
+        }
         return res.json({ success: true, found: true, data: normalized });
       } catch (jsonErr) {
         console.warn("JSON parse error:", jsonErr);

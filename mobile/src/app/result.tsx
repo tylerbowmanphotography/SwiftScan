@@ -34,7 +34,9 @@ export default function ResultScreen() {
   const identText =
     ident?.verified && ident.method === 'database'
       ? 'Identified from barcode database'
-      : ident?.method === 'photo'
+      : ident?.source === 'Web search'
+        ? 'Matched from the barcode by web search (unverified)'
+        : ident?.method === 'photo'
         ? 'Identified by AI from your photo (unverified)'
         : ident?.method === 'search' || ident?.method === 'correction'
           ? 'Product from your search'
