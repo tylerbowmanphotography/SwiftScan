@@ -86,6 +86,19 @@ export interface ProRecord {
 
 const PAST_DUE_GRACE_MS = 3 * 86400_000;
 
+/**
+ * Comped accounts: emails in UNLIMITED_EMAILS (comma-separated, set on the host) always get Pro
+ * (unlimited scans, Pro alert limits) once signed in with that email. No payment record needed.
+ */
+export function isUnlimitedEmail(email: string | null | undefined): boolean {
+  const e = normalizeEmail(email);
+  if (!e) return false;
+  return clean(process.env.UNLIMITED_EMAILS)
+    .split(/[,\s]+/)
+    .map((x) => normalizeEmail(x))
+    .includes(e);
+}
+
 export function proRecordActive(rec: ProRecord | null | undefined, now = Date.now()): boolean {
   if (!rec) return false;
   if (rec.status === "active" || rec.status === "trialing") return true;
@@ -305,7 +318,7 @@ export async function getUsageDetail(req: Request, res?: Response): Promise<Usag
   const email = isAuthEnabled() ? readSessionEmail(req) : null;
   if (store) {
     try {
-      const pro = (email ? proRecordActive(await getProRecord(email)) : false) || cookieIsPro(req);
+      const pro = isUnlimitedEmail(email) || (email ? proRecordActive(await getProRecord(email)) : false) || cookieIsPro(req);
       const keys = quotaKeys(req, res, day, email);
       const [d, i, u] = await Promise.all([readNum(store, keys.device), readNum(store, keys.ip), readNum(store, keys.user)]);
       return { ...buildUsage(pro, Math.max(d, u), i), email, source: "db" };

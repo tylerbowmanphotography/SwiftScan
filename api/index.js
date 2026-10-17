@@ -311,6 +311,11 @@ async function getStripe() {
   return new Stripe(stripeConfig().secretKey);
 }
 var PAST_DUE_GRACE_MS = 3 * 864e5;
+function isUnlimitedEmail(email) {
+  const e = normalizeEmail(email);
+  if (!e) return false;
+  return clean2(process.env.UNLIMITED_EMAILS).split(/[,\s]+/).map((x) => normalizeEmail(x)).includes(e);
+}
 function proRecordActive(rec, now = Date.now()) {
   if (!rec) return false;
   if (rec.status === "active" || rec.status === "trialing") return true;
@@ -481,7 +486,7 @@ async function getUsageDetail(req, res) {
   const email = isAuthEnabled() ? readSessionEmail(req) : null;
   if (store) {
     try {
-      const pro = (email ? proRecordActive(await getProRecord(email)) : false) || cookieIsPro(req);
+      const pro = isUnlimitedEmail(email) || (email ? proRecordActive(await getProRecord(email)) : false) || cookieIsPro(req);
       const keys = quotaKeys(req, res, day, email);
       const [d, i, u] = await Promise.all([readNum(store, keys.device), readNum(store, keys.ip), readNum(store, keys.user)]);
       return { ...buildUsage(pro, Math.max(d, u), i), email, source: "db" };
@@ -916,7 +921,7 @@ function registerAlertRoutes(app2, estimate) {
       const id = alertId(productName);
       const existing = await listAlerts(email);
       if (!existing.some((a) => a.id === id)) {
-        const pro = proRecordActive(await s.get(`pro:${email}`));
+        const pro = isUnlimitedEmail(email) || proRecordActive(await s.get(`pro:${email}`));
         const cap = maxAlertsFor(pro);
         if (existing.length >= cap) {
           return res.status(403).json({

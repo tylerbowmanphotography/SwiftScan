@@ -318,6 +318,24 @@ test("account deletion: requires sign-in and confirmation, cancels Pro, removes 
   assert.equal((await c.get("/api/items")).status, 401); // signed out
 });
 
+test("UNLIMITED_EMAILS: comped accounts get unlimited scans once signed in, others don't", async () => {
+  process.env.UNLIMITED_EMAILS = "Comp@Example.com, other@example.com";
+  try {
+    const c = new Client();
+    assert.equal((await c.get("/api/config")).json.usage.isPro, false);
+    await signIn(c, "comp@example.com");
+    const cfg = (await c.get("/api/config")).json;
+    assert.equal(cfg.usage.isPro, true);
+    assert.equal(cfg.user.isPro, true);
+    assert.equal(cfg.usage.remaining, null);
+    const d = new Client();
+    await signIn(d, "regular@example.com");
+    assert.equal((await d.get("/api/config")).json.usage.isPro, false);
+  } finally {
+    delete process.env.UNLIMITED_EMAILS;
+  }
+});
+
 test("saved items sync", async () => {
   const c = new Client();
   assert.equal((await c.get("/api/items")).status, 401);
