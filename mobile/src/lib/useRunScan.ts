@@ -29,10 +29,14 @@ export function useRunScan() {
           go({ pathname: '/result', params: { id: item.id } });
         } else if (out.kind === 'notFound') {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-          Alert.alert('Barcode not found', out.message, [
-            { text: 'Search by name', onPress: () => router.replace({ pathname: '/search', params: { q: '' } }) },
-            { text: 'Take a photo instead', style: 'cancel' },
-          ]);
+          Alert.alert(
+            'Barcode not in our databases yet',
+            "Take a photo of the front of the item, or search by name. We'll remember this barcode, so next time it scans instantly.",
+            [
+              { text: 'Search by name', onPress: () => router.replace({ pathname: '/search', params: { q: '', link: out.barcode } }) },
+              { text: 'Take a photo', style: 'cancel' },
+            ],
+          );
         } else if (out.kind === 'limit') {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
           const canSignIn = !!config?.accounts?.enabled && !config?.user;

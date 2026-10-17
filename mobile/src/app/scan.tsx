@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
+import { CameraView, useCameraPermissions, type BarcodeScanningResult, type LensInfo } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -12,6 +12,10 @@ import { prepareForScan } from '../lib/image';
 import { colors } from '../lib/theme';
 import { useRunScan } from '../lib/useRunScan';
 
+const WIDE_LENS = 'AVCaptureDeviceTypeBuiltInWideAngleCamera';
+// The ultra-wide lens focuses much closer (macro on iPhone Pro models): good for small barcodes and labels.
+const CLOSE_UP_LENS = 'AVCaptureDeviceTypeBuiltInUltraWideCamera';
+
 const PRODUCT_BARCODES = ['ean13', 'ean8', 'upc_a', 'upc_e', 'itf14', 'code128'] as const;
 
 export default function ScanScreen() {
@@ -19,7 +23,13 @@ export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const camera = useRef<CameraView>(null);
   const locked = useRef(false);
+  // Last barcode that wasn't found; sent with the next photo so the server can learn it.
+  const pendingBarcode = useRef<string | null>(null);
   const [torch, setTorch] = useState(false);
+  const [lenses, setLenses] = useState<LensInfo[]>([]);
+  const [closeUp, setCloseUp] = useState(false);
+  const hasLens = (t: string) => lenses.some((l) => l.deviceType === t);
+  const selectedLens = closeUp && hasLens(CLOSE_UP_LENS) ? CLOSE_UP_LENS : hasLens(WIDE_LENS) ? WIDE_LENS : undefined;
   const [preview, setPreview] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   const { run, busy } = useRunScan();
@@ -37,6 +47,7 @@ export default function ScanScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     setStatus(`Looking up ${code}…`);
     const out = await run({ barcode: code }, 'barcode');
+    if (out.kind === 'notFound') pendingBarcode.current = out.barcode;
     if (out.kind !== 'found') unlockSoon();
   };
 
@@ -46,7 +57,9 @@ export default function ScanScreen() {
     setStatus('Identifying your item…');
     try {
       const img = await prepareForScan(uri, width);
-      const out = await run({ imageBase64: img.base64, mimeType: img.mimeType }, 'camera', { thumbnailUrl: img.uri });
+      const linkBarcode = pendingBarcode.current ?? undefined;
+      const out = await run({ imageBase64: img.base64, mimeType: img.mimeType, linkBarcode }, 'camera', { thumbnailUrl: img.uri });
+      if (out.kind === 'found') pendingBarcode.current = null;
       if (out.kind !== 'found') unlockSoon();
     } catch (e: any) {
       Alert.alert('Photo problem', e?.message || 'Could not use that photo.');
@@ -101,6 +114,8 @@ export default function ScanScreen() {
         style={StyleSheet.absoluteFill}
         facing="back"
         enableTorch={torch}
+        selectedLens={selectedLens}
+        onAvailableLensesChanged={(e) => setLenses(e.lenses.filter((l) => !/front/i.test(l.localizedName)))}
         barcodeScannerSettings={{ barcodeTypes: [...PRODUCT_BARCODES] }}
         onBarcodeScanned={busy || preview ? undefined : onBarcode}
       />
@@ -114,7 +129,7 @@ export default function ScanScreen() {
           <View style={[styles.corner, { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 18 }]} />
           <View style={[styles.corner, { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 18 }]} />
         </View>
-        <Text style={styles.hint}>{busy ? '' : 'Aim at a barcode, or tap the shutter to snap the item'}</Text>
+        <Text style={styles.hint}>{busy ? '' : closeUp ? 'Close-up: hold the phone a few inches away' : 'Aim at a barcode, or tap the shutter to snap the item'}</Text>
       </View>
 
       {/* Top controls */}
@@ -126,6 +141,28 @@ export default function ScanScreen() {
           <Ionicons name={torch ? 'flash' : 'flash-off'} size={22} color={torch ? colors.amber : '#fff'} />
         </Pressable>
       </View>
+
+      {/* Lens switch: normal or close-up (ultra-wide) */}
+      {hasLens(CLOSE_UP_LENS) && !busy ? (
+        <View style={[styles.lensRow, { bottom: insets.bottom + 128 }]}>
+          {[
+            { key: false, label: '1×' },
+            { key: true, label: 'Close-up' },
+          ].map((o) => (
+            <Pressable
+              key={o.label}
+              onPress={() => setCloseUp(o.key)}
+              style={[styles.lensBtn, closeUp === o.key && styles.lensBtnOn]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: closeUp === o.key }}
+              accessibilityLabel={o.key ? 'Close-up lens' : 'Normal lens'}
+            >
+              {o.key ? <Ionicons name="flower-outline" size={14} color={closeUp ? '#000' : '#fff'} /> : null}
+              <Text style={[styles.lensText, closeUp === o.key && { color: '#000' }]}>{o.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
 
       {/* Bottom controls */}
       <View style={[styles.bottomRow, { paddingBottom: insets.bottom + 24 }]}>
@@ -160,6 +197,10 @@ const styles = StyleSheet.create({
   frame: { width: FRAME, height: FRAME * 0.72 },
   corner: { position: 'absolute', width: 42, height: 42, borderColor: colors.pink500 },
   hint: { color: '#fff', marginTop: 24, fontSize: 15, fontWeight: '600', textAlign: 'center', paddingHorizontal: 40, textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 6 },
+  lensRow: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', gap: 6, padding: 4, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)' },
+  lensBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, height: 34, borderRadius: 17 },
+  lensBtnOn: { backgroundColor: '#fde68a' },
+  lensText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   topRow: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between' },
   roundBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   roundBtnLg: { width: 54, height: 54, borderRadius: 27, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },

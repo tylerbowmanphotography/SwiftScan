@@ -36,11 +36,14 @@ export interface LocalStore {
   reason?: string;
 }
 
-export type ScanInput =
+// linkBarcode: a barcode that wasn't in any database; the server remembers it for the product
+// this photo/search identifies, so the next scan of that barcode is an instant match.
+export type ScanInput = (
   | { barcode: string }
   | { textQuery: string }
   | { imageBase64: string; mimeType: string }
-  | { imageBase64?: string; textQuery: string; correctionHint: string };
+  | { imageBase64?: string; textQuery: string; correctionHint: string }
+) & { linkBarcode?: string };
 
 export type ScanOutcome =
   | { kind: 'found'; data: ProductScanResult; usage?: Usage }

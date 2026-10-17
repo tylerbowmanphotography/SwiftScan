@@ -1207,12 +1207,35 @@ async function lookupUpcItemDb(code) {
     source: "UPCitemdb"
   };
 }
+var MEMORY_SOURCE = "SwiftScan users";
+var barcodeMemoryKey = (code) => `upcmem:${code}`;
+async function recallBarcode(variants) {
+  const store = getStore();
+  if (!store) return null;
+  for (const v of variants.slice(0, 3)) {
+    try {
+      const hit = await store.get(barcodeMemoryKey(v));
+      if (hit?.name) return { ...hit, source: MEMORY_SOURCE };
+    } catch (err) {
+      console.warn("Barcode memory read failed:", err?.message || err);
+      return null;
+    }
+  }
+  return null;
+}
+async function rememberBarcode(code, product) {
+  const store = getStore();
+  const name = String(product.productName || "").trim();
+  if (!store || name.length < 3) return;
+  await store.set(barcodeMemoryKey(code), { name, brand: product.brand, category: product.category, source: MEMORY_SOURCE }, { ex: 365 * 86400 }).catch((err) => console.warn("Barcode memory write failed:", err?.message || err));
+}
 async function lookupBarcode(variants) {
   const errors = [];
   const sources = [
     { label: "Open Food Facts", run: (c) => lookupOpenFactsFamily("world.openfoodfacts.org", "Open Food Facts", c) },
     { label: "Open Beauty Facts", run: (c) => lookupOpenFactsFamily("world.openbeautyfacts.org", "Open Beauty Facts", c) },
     { label: "Open Products Facts", run: (c) => lookupOpenFactsFamily("world.openproductsfacts.org", "Open Products Facts", c) },
+    { label: "Open Pet Food Facts", run: (c) => lookupOpenFactsFamily("world.openpetfoodfacts.org", "Open Pet Food Facts", c) },
     { label: "Open Library", run: lookupOpenLibrary },
     { label: "UPCitemdb", run: lookupUpcItemDb }
   ];
@@ -1230,10 +1253,12 @@ async function lookupBarcode(variants) {
     }
     return null;
   };
-  const openFacts = await Promise.all(sources.slice(0, 3).map(runSource));
+  const remembered = await recallBarcode(variants);
+  if (remembered) return { product: remembered, incomplete: false, errors };
+  const openFacts = await Promise.all(sources.slice(0, 4).map(runSource));
   const openHit = openFacts.find((h) => !!h);
   if (openHit) return { product: openHit, incomplete: errors.length > 0, errors };
-  for (const source of sources.slice(3)) {
+  for (const source of sources.slice(4)) {
     const hit = await runSource(source);
     if (hit) return { product: hit, incomplete: errors.length > 0, errors };
   }
@@ -1370,7 +1395,8 @@ These are estimates. If you cannot find a credible price, return {"lowestPrice":
 registerAlertRoutes(app, estimateCurrentPrice);
 app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {
   const startedAt = Date.now();
-  const { imageBase64, mimeType = "image/jpeg", textQuery, barcode, correctionHint } = req.body || {};
+  const { imageBase64, mimeType = "image/jpeg", textQuery, barcode, correctionHint, linkBarcode } = req.body || {};
+  const linkCode = linkBarcode && (imageBase64 || textQuery || correctionHint) ? normalizeBarcode(String(linkBarcode)) : null;
   if (!imageBase64 && !textQuery && !barcode && !correctionHint) {
     return res.status(400).json({
       success: false,
@@ -1442,7 +1468,7 @@ app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {
     groundTruth = outcome.product;
     console.log(`Barcode '${norm.code}' found in ${groundTruth.source}:`, groundTruth.name);
   }
-  const webMatched = groundTruth?.source === WEB_LOOKUP_SOURCE;
+  const webMatched = groundTruth?.source === WEB_LOOKUP_SOURCE || groundTruth?.source === MEMORY_SOURCE;
   const method = correctionHint ? "correction" : hasPhoto ? "photo" : groundTruth && !webMatched ? "database" : "search";
   const identification = {
     method,
@@ -1499,7 +1525,10 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
   if (cache && cacheKey) {
     try {
       const hit = await cache.get(cacheKey);
-      if (hit?.productName) return res.json({ success: true, found: true, data: hit, cached: true });
+      if (hit?.productName) {
+        if (linkCode?.ok) await rememberBarcode(linkCode.code, hit);
+        return res.json({ success: true, found: true, data: hit, cached: true });
+      }
     } catch (err) {
       console.warn("Scan cache read failed:", err?.message || err);
     }
@@ -1546,6 +1575,7 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
         if (cache && cacheKey) {
           await cache.set(cacheKey, normalized, { ex: SCAN_CACHE_SECONDS }).catch((err) => console.warn("Scan cache write failed:", err?.message || err));
         }
+        if (linkCode?.ok) await rememberBarcode(linkCode.code, normalized);
         return res.json({ success: true, found: true, data: normalized });
       } catch (jsonErr) {
         console.warn("JSON parse error:", jsonErr);

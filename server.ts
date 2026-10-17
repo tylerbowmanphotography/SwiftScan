@@ -272,12 +272,44 @@ interface BarcodeLookupOutcome {
 }
 
 // Query free databases in order; the first real hit wins. Never guesses.
+// ---- Barcode memory -------------------------------------------------------------------------
+// When a barcode isn't in any database, the app asks the user for a photo or a name search and
+// sends the barcode along ("linkBarcode"). Once that identifies the product, the barcode is
+// remembered here, so the next person who scans it gets an instant match without any AI.
+const MEMORY_SOURCE = "SwiftScan users";
+const barcodeMemoryKey = (code: string) => `upcmem:${code}`;
+
+async function recallBarcode(variants: string[]): Promise<BarcodeProduct | null> {
+  const store = getStore();
+  if (!store) return null;
+  for (const v of variants.slice(0, 3)) {
+    try {
+      const hit = await store.get<BarcodeProduct>(barcodeMemoryKey(v));
+      if (hit?.name) return { ...hit, source: MEMORY_SOURCE };
+    } catch (err: any) {
+      console.warn("Barcode memory read failed:", err?.message || err);
+      return null;
+    }
+  }
+  return null;
+}
+
+async function rememberBarcode(code: string, product: { productName?: string; brand?: string; category?: string }) {
+  const store = getStore();
+  const name = String(product.productName || "").trim();
+  if (!store || name.length < 3) return;
+  await store
+    .set(barcodeMemoryKey(code), { name, brand: product.brand, category: product.category, source: MEMORY_SOURCE }, { ex: 365 * 86400 })
+    .catch((err: any) => console.warn("Barcode memory write failed:", err?.message || err));
+}
+
 async function lookupBarcode(variants: string[]): Promise<BarcodeLookupOutcome> {
   const errors: string[] = [];
   const sources: { label: string; run: (code: string) => Promise<BarcodeProduct | null> }[] = [
     { label: "Open Food Facts", run: (c) => lookupOpenFactsFamily("world.openfoodfacts.org", "Open Food Facts", c) },
     { label: "Open Beauty Facts", run: (c) => lookupOpenFactsFamily("world.openbeautyfacts.org", "Open Beauty Facts", c) },
     { label: "Open Products Facts", run: (c) => lookupOpenFactsFamily("world.openproductsfacts.org", "Open Products Facts", c) },
+    { label: "Open Pet Food Facts", run: (c) => lookupOpenFactsFamily("world.openpetfoodfacts.org", "Open Pet Food Facts", c) },
     { label: "Open Library", run: lookupOpenLibrary },
     { label: "UPCitemdb", run: lookupUpcItemDb },
   ];
@@ -299,13 +331,17 @@ async function lookupBarcode(variants: string[]): Promise<BarcodeLookupOutcome> 
     return null;
   };
 
-  // The three Open*Facts databases are queried in parallel (to keep latency down) but the
-  // result is chosen in priority order: Food, Beauty, Products.
-  const openFacts = await Promise.all(sources.slice(0, 3).map(runSource));
+  // The four Open*Facts databases are queried in parallel (to keep latency down) but the
+  // result is chosen in priority order: Food, Beauty, Products, Pet Food.
+  // Barcodes SwiftScan users have already identified (see rememberBarcode) answer first, for free.
+  const remembered = await recallBarcode(variants);
+  if (remembered) return { product: remembered, incomplete: false, errors };
+
+  const openFacts = await Promise.all(sources.slice(0, 4).map(runSource));
   const openHit = openFacts.find((h) => !!h);
   if (openHit) return { product: openHit, incomplete: errors.length > 0, errors };
 
-  for (const source of sources.slice(3)) {
+  for (const source of sources.slice(4)) {
     const hit = await runSource(source);
     if (hit) return { product: hit, incomplete: errors.length > 0, errors };
   }
@@ -492,7 +528,9 @@ registerAlertRoutes(app, estimateCurrentPrice);
 // Main Product Scan API endpoint
 app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {
   const startedAt = Date.now();
-  const { imageBase64, mimeType = "image/jpeg", textQuery, barcode, correctionHint } = req.body || {};
+  const { imageBase64, mimeType = "image/jpeg", textQuery, barcode, correctionHint, linkBarcode } = req.body || {};
+  // Barcode the user scanned before this photo/search (it wasn't in any database).
+  const linkCode = linkBarcode && (imageBase64 || textQuery || correctionHint) ? normalizeBarcode(String(linkBarcode)) : null;
 
   // Check if at least one input field is provided
   if (!imageBase64 && !textQuery && !barcode && !correctionHint) {
@@ -585,7 +623,7 @@ app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {
     console.log(`Barcode '${norm.code}' found in ${groundTruth.source}:`, groundTruth.name);
   }
 
-  const webMatched = groundTruth?.source === WEB_LOOKUP_SOURCE;
+  const webMatched = groundTruth?.source === WEB_LOOKUP_SOURCE || groundTruth?.source === MEMORY_SOURCE;
   const method: Identification["method"] = correctionHint ? "correction" : hasPhoto ? "photo" : groundTruth && !webMatched ? "database" : "search";
   const identification: Identification = {
     method,
@@ -652,7 +690,10 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
   if (cache && cacheKey) {
     try {
       const hit = await cache.get<any>(cacheKey);
-      if (hit?.productName) return res.json({ success: true, found: true, data: hit, cached: true });
+      if (hit?.productName) {
+        if (linkCode?.ok) await rememberBarcode(linkCode.code, hit);
+        return res.json({ success: true, found: true, data: hit, cached: true });
+      }
     } catch (err: any) {
       console.warn("Scan cache read failed:", err?.message || err);
     }
@@ -708,6 +749,7 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
           // Awaited: a serverless function can be frozen right after it responds.
           await cache.set(cacheKey, normalized, { ex: SCAN_CACHE_SECONDS }).catch((err: any) => console.warn("Scan cache write failed:", err?.message || err));
         }
+        if (linkCode?.ok) await rememberBarcode(linkCode.code, normalized);
         return res.json({ success: true, found: true, data: normalized });
       } catch (jsonErr) {
         console.warn("JSON parse error:", jsonErr);
