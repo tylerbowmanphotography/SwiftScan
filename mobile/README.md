@@ -51,7 +51,7 @@ In the repo: **Settings → Secrets and variables → Actions**
 
 ### 4. Send it for review (in App Store Connect)
 
-Fill in the listing (ready-to-paste text is in the SwiftScan project doc "app-store-listing.md"), add iPhone screenshots (take them from the TestFlight build on your phone), answer the privacy questions, pick the build, and **Submit for Review**.
+Fill in the listing (ready-to-paste text is in the SwiftScan project doc "app-store-listing.md"), upload the iPhone screenshots from `mobile/store/screenshots-6.9in/`, answer the privacy questions, pick the build, and **Submit for Review**.
 
 ## App Store notes
 

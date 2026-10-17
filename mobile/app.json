@@ -63,6 +63,12 @@
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "owner": "tylerbowmanphotographys-team",
+    "extra": {
+      "eas": {
+        "projectId": "2c7f6a1c-ef16-48f8-970a-89e8817f5457"
+      }
     }
   }
 }
