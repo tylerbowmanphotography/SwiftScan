@@ -6,13 +6,19 @@
   "build": {
     "preview": {
       "distribution": "internal",
-      "ios": { "resourceClass": "default" }
+      "ios": {
+        "resourceClass": "default"
+      }
     },
     "production": {
       "autoIncrement": true
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appName": "SwiftScan: Price Checker"
+      }
+    }
   }
 }
