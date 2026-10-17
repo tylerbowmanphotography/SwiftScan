@@ -41,6 +41,28 @@ export default function AccountScreen() {
     }
   };
 
+  const confirmDelete = () =>
+    Alert.alert(
+      'Delete your account?',
+      `This permanently deletes ${user?.email ?? 'your account'}, your synced scans and price alerts${user?.isPro ? ', and cancels your Pro subscription' : ''}. Scans saved on this phone stay here. This can't be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete account',
+          style: 'destructive',
+          onPress: async () => {
+            setBusy(true);
+            const r = await api.deleteAccount();
+            setBusy(false);
+            if (!r.ok) return Alert.alert("Couldn't delete account", r.error);
+            await refreshConfig();
+            Alert.alert('Account deleted', 'Your account and its data have been removed.');
+            router.back();
+          },
+        },
+      ],
+    );
+
   const confirmSignOut = () =>
     Alert.alert('Sign out?', 'Your scans stay on this phone.', [
       { text: 'Cancel', style: 'cancel' },
@@ -66,6 +88,9 @@ export default function AccountScreen() {
             {!user.isPro && usage?.remaining != null ? <Text style={styles.muted}>{usage.remaining} free scans left today.</Text> : null}
             <Text style={styles.muted}>Your saved scans and price alerts sync with your account on the web.</Text>
             <SecondaryButton title="Sign out" onPress={confirmSignOut} textStyle={{ color: colors.rose }} />
+            <Pressable onPress={confirmDelete} disabled={busy} style={{ alignSelf: 'center', paddingVertical: 6 }} hitSlop={8} accessibilityRole="button">
+              <Text style={{ color: colors.textFaint, fontSize: 14, textDecorationLine: 'underline' }}>{busy ? 'Deleting…' : 'Delete account'}</Text>
+            </Pressable>
           </Card>
         ) : config?.accounts?.enabled === false ? (
           <Card>

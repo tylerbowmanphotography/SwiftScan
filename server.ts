@@ -4,6 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { registerMonetizationRoutes, scanQuota } from "./server/monetization";
 import { registerAuthRoutes } from "./server/auth";
+import { registerAccountRoutes } from "./server/account";
 import { registerAlertRoutes, type PriceEstimate } from "./server/alerts";
 
 dotenv.config();
@@ -90,6 +91,7 @@ function getGeminiClient() {
 
 // Accounts + monetization: /api/auth/*, /api/config, /api/checkout*, /api/billing-portal, /api/stripe-webhook
 registerAuthRoutes(app);
+registerAccountRoutes(app);
 registerMonetizationRoutes(app);
 
 // Health check endpoint

@@ -23,25 +23,41 @@ The native SwiftScan app, built with Expo and Expo Router. It uses the same back
 
 To point the app at a different backend (e.g. a Vercel preview), set `EXPO_PUBLIC_API_BASE=https://your-preview.vercel.app` before `npx expo start`.
 
-## Build for TestFlight / the App Store
+## Releasing to the App Store
 
-Needs an Apple Developer account ($99/year) and a free expo.dev account. Builds run in the cloud.
+You need an Apple Developer Program membership and a free expo.dev account. Builds run in Expo's cloud, so no Mac is needed.
 
-```bash
-cd mobile
-npx eas-cli@latest login
-npx eas-cli@latest build:configure     # links the project to your expo.dev account
-npx eas-cli@latest build -p ios --profile production
-npx eas-cli@latest submit -p ios --latest
-```
+### 1. First release (once, ~30 minutes, mostly waiting)
 
-The bundle identifier is `store.swiftscan.app` (in `app.json`). Change it before the first build if you want a different one; it can't change after release.
+Apple only lets the first signing certificate be created with your own Apple ID sign-in, so this step is run by you:
 
-## Before submitting to the App Store
+- **On any computer:** `bash mobile/scripts/first-release.sh`
+- **No computer?** On github.com open the repo → **Code** → **Codespaces** → **Create codespace**. When the terminal appears, run `bash mobile/scripts/first-release.sh`.
 
-- **Account deletion**: Apple requires apps with sign-in to let users delete their account from inside the app. The backend has no delete-account endpoint yet; add one and a "Delete account" button on the Account screen.
-- **Pro purchases**: the app deliberately has no "Buy Pro" button. Selling digital upgrades inside an iOS app generally has to go through Apple In-App Purchase, so for now people who bought Pro on the web just sign in. Adding IAP is a separate step.
-- **Privacy labels**: in App Store Connect, declare the camera/photos use, email (account), and that Google Analytics/AdSense are only on the website, not in the app.
+When it asks, sign in to Expo and to your Apple ID, and answer **yes** to letting Expo generate the distribution certificate, provisioning profile and App Store Connect API key. The build is uploaded to App Store Connect and shows up in TestFlight about 15 minutes later.
+
+### 2. Connect GitHub (once)
+
+In the repo: **Settings → Secrets and variables → Actions**
+
+| Type | Name | Value |
+|---|---|---|
+| Secret | `EXPO_TOKEN` | expo.dev → Account settings → Access tokens → Create |
+| Variable | `ASC_APP_ID` | App Store Connect → SwiftScan → App Information → **Apple ID** (a number) |
+
+### 3. Every release after that
+
+**Actions → iPhone release → Run workflow.** It checks the code, builds on EAS (the build number goes up automatically) and uploads to App Store Connect. Bump `version` in `app.json` when you want a new public version number.
+
+### 4. Send it for review (in App Store Connect)
+
+Fill in the listing (ready-to-paste text is in the SwiftScan project doc "app-store-listing.md"), add iPhone screenshots (take them from the TestFlight build on your phone), answer the privacy questions, pick the build, and **Submit for Review**.
+
+## App Store notes
+
+- **Account deletion** is in the app (Account → Delete account), backed by `POST /api/account/delete`, which also cancels an active Pro subscription.
+- **Pro purchases**: the app has no "Buy Pro" button on purpose. Selling digital upgrades inside an iOS app generally has to use Apple In-App Purchase, so people who bought Pro on the web just sign in. Don't mention web pricing inside the app.
+- **Sign-in is optional**, so App Review doesn't need a demo account.
 
 ## Project layout
 

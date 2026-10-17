@@ -178,6 +178,9 @@ function readSessionEmail(req) {
 function startSession(req, res, email) {
   setCookie(req, res, SESSION_COOKIE, createSessionToken(email), SESSION_DAYS * 86400);
 }
+function endSession(req, res) {
+  clearCookie(req, res, SESSION_COOKIE);
+}
 async function getUser(email) {
   const s = getStore();
   return s ? s.get(`user:${email}`) : null;
@@ -260,7 +263,7 @@ function registerAuthRoutes(app2) {
     }
   });
   app2.post(["/api/auth/logout", "/api/auth/logout/"], (req, res) => {
-    clearCookie(req, res, SESSION_COOKIE);
+    endSession(req, res);
     res.json({ success: true });
   });
 }
@@ -330,6 +333,21 @@ async function putProRecord(email, patch) {
     await s.set(`cust:${next.customerId}`, email);
     await upsertUser(email, { stripeCustomerId: next.customerId });
   }
+}
+async function endProForDeletedAccount(email) {
+  const s = getStore();
+  if (!s) return;
+  const rec = await getProRecord(email);
+  if (rec?.subscriptionId && rec.status !== "canceled" && isStripeEnabled()) {
+    const stripe = await getStripe();
+    try {
+      await stripe.subscriptions.cancel(rec.subscriptionId);
+    } catch (err) {
+      if (err?.code !== "resource_missing") throw err;
+    }
+  }
+  if (rec?.customerId) await s.del(`cust:${rec.customerId}`);
+  await s.del(`pro:${email}`);
 }
 async function emailForCustomer(customerId, hint) {
   const fromHint = normalizeEmail(hint);
@@ -669,6 +687,37 @@ function registerMonetizationRoutes(app2) {
     } catch (err) {
       console.warn("Stripe webhook processing error:", err?.message || err);
       return res.status(500).json({ received: false, error: "Processing failed; will retry." });
+    }
+  });
+}
+
+// server/account.ts
+async function deleteAccountData(email) {
+  const s = getStore();
+  if (!s) throw new Error("No database configured");
+  await endProForDeletedAccount(email);
+  await s.del(`alerts:${email}`);
+  await s.srem("alerts:index", email);
+  await s.del(`items:${email}`);
+  await s.del(`user:${email}`);
+}
+function registerAccountRoutes(app2) {
+  app2.post(["/api/account/delete", "/api/account/delete/"], async (req, res) => {
+    const email = getStore() ? readSessionEmail(req) : null;
+    if (!email) return res.status(401).json({ success: false, code: "SIGN_IN_REQUIRED", error: "Sign in to delete your account." });
+    if (req.body?.confirm !== true) {
+      return res.status(400).json({ success: false, error: "Confirm the deletion to continue." });
+    }
+    try {
+      await deleteAccountData(email);
+      endSession(req, res);
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("Account deletion failed:", err?.message || err);
+      return res.status(500).json({
+        success: false,
+        error: "We couldn't delete your account right now. Please try again, or email us and we'll do it for you."
+      });
     }
   });
 }
@@ -1021,6 +1070,7 @@ function getGeminiClient() {
   });
 }
 registerAuthRoutes(app);
+registerAccountRoutes(app);
 registerMonetizationRoutes(app);
 app.get(["/api/health", "/api/health/"], (req, res) => {
   res.json({

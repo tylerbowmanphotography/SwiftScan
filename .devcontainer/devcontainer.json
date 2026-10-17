@@ -1,0 +1,10 @@
+{
+  "name": "SwiftScan",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "postCreateCommand": "cd mobile && npm ci",
+  "customizations": {
+    "codespaces": {
+      "openFiles": ["mobile/README.md"]
+    }
+  }
+}

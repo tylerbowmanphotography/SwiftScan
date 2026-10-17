@@ -173,3 +173,8 @@ export async function setPriceAlert(productName: string, brand: string, targetPr
 export async function removePriceAlert(productName: string) {
   await post('/api/alerts/remove', { productName });
 }
+
+export async function deleteAccount() {
+  const r = await post('/api/account/delete', { confirm: true });
+  return { ok: r.ok, error: r.ok ? undefined : r.data?.error || "Couldn't delete your account. Please try again." };
+}
