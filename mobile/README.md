@@ -49,6 +49,12 @@ In the repo: **Settings → Secrets and variables → Actions**
 
 **Actions → iPhone release → Run workflow.** It checks the code, builds on EAS (the build number goes up automatically) and uploads to App Store Connect. Bump `version` in `app.json` when you want a new public version number.
 
+### Instant updates (no build, no review)
+
+Design and screen changes (anything in `mobile/src` or `mobile/assets`) go out automatically when they land on `main`: the **iPhone instant update** workflow publishes an Expo over-the-air update, and phones pick it up the next time the app is opened twice. You can also run it by hand from Actions.
+
+It only reaches builds with the same native setup. After adding a native library, a permission, or changing the app icon, run **iPhone release** for a full build instead (and bump `version` in `app.json` for the App Store).
+
 ### 4. Send it for review (in App Store Connect)
 
 Fill in the listing (ready-to-paste text is in the SwiftScan project doc "app-store-listing.md"), upload the iPhone screenshots from `mobile/store/screenshots-6.9in/`, answer the privacy questions, pick the build, and **Submit for Review**.
