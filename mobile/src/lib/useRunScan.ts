@@ -17,7 +17,7 @@ export function useRunScan() {
   const [busy, setBusy] = useState(false);
 
   const run = useCallback(
-    async (input: api.ScanInput, scanType: ScanType, opts: { thumbnailUrl?: string; replace?: boolean } = {}) => {
+    async (input: api.ScanInput, scanType: ScanType, opts: { thumbnailUrl?: string; replace?: boolean; quietNotFound?: boolean } = {}) => {
       setBusy(true);
       try {
         const out = await api.scan(input);
@@ -29,6 +29,8 @@ export function useRunScan() {
           go({ pathname: '/result', params: { id: item.id } });
         } else if (out.kind === 'notFound') {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+          // The camera shows its own banner for this, so it can keep the viewfinder ready for a photo.
+          if (opts.quietNotFound) return out;
           Alert.alert(
             'Barcode not in our databases yet',
             "Take a photo of the front of the item, or search by name. We'll remember this barcode, so next time it scans instantly.",
