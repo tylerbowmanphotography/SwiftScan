@@ -1,0 +1,74 @@
+# Sends app design and screen changes straight to iPhones (Expo over-the-air update), no new build or App Store review.
+# Runs automatically when app code on main changes, or from GitHub: Actions → "iPhone instant update" → Run workflow.
+# Phones get it the next time they open SwiftScan twice (it downloads on the first open, applies on the next).
+# Only reaches builds with the same native setup (runtimeVersion "fingerprint"); after adding a native
+# library or permission, run "iPhone release" for a full build instead.
+# Needs the EXPO_TOKEN secret (see mobile/README.md).
+name: iPhone instant update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mobile/src/**"
+      - "mobile/assets/**"
+  workflow_dispatch:
+    inputs:
+      message:
+        description: "What changed (shown on expo.dev)"
+        required: false
+        default: ""
+
+concurrency:
+  group: ios-update
+  cancel-in-progress: true
+
+jobs:
+  update:
+    name: Publish update
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Check setup
+        id: setup
+        working-directory: .
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::warning::Skipping: add the EXPO_TOKEN secret to publish iPhone updates. See mobile/README.md."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.setup.outputs.ready == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.setup.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: expo/expo-github-action@v8
+        if: steps.setup.outputs.ready == 'true'
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install and check
+        if: steps.setup.outputs.ready == 'true'
+        run: |
+          npm ci
+          npx tsc --noEmit
+          npx expo lint
+
+      - name: Publish to the production channel
+        if: steps.setup.outputs.ready == 'true'
+        env:
+          MSG: ${{ inputs.message || github.event.head_commit.message || 'Update' }}
+        run: eas update --channel production --environment production --platform ios --message "$(echo "$MSG" | head -n 1)" --non-interactive
