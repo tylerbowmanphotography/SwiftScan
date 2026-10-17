@@ -8,7 +8,7 @@
  */
 import type { Express, Request, Response } from "express";
 import { getStore } from "./db";
-import { accountsEnabled, getAffiliateConfig, proRecordActive, type ProRecord } from "./monetization";
+import { accountsEnabled, getAffiliateConfig, isUnlimitedEmail, proRecordActive, type ProRecord } from "./monetization";
 import { readSessionEmail } from "./auth";
 import { clean, hmac, safeEqual, appOrigin, hashShort, escapeHtml, sendEmail, normalizeEmail } from "./util";
 import { BRAND_BUTTON, BRAND_LINK } from "./brand";
@@ -282,7 +282,7 @@ export function registerAlertRoutes(app: Express, estimate: PriceEstimator) {
       const id = alertId(productName);
       const existing = await listAlerts(email);
       if (!existing.some((a) => a.id === id)) {
-        const pro = proRecordActive(await s.get<ProRecord>(`pro:${email}`));
+        const pro = isUnlimitedEmail(email) || proRecordActive(await s.get<ProRecord>(`pro:${email}`));
         const cap = maxAlertsFor(pro);
         if (existing.length >= cap) {
           return res.status(403).json({
