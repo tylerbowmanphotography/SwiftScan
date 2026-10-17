@@ -112,6 +112,27 @@ async function putProRecord(email: string, patch: Partial<ProRecord>) {
   }
 }
 
+/**
+ * Used when an account is deleted: stops any Stripe subscription right away (so nobody keeps
+ * paying for an account that no longer exists) and removes the stored Pro + customer records.
+ */
+export async function endProForDeletedAccount(email: string): Promise<void> {
+  const s = getStore();
+  if (!s) return;
+  const rec = await getProRecord(email);
+  if (rec?.subscriptionId && rec.status !== "canceled" && isStripeEnabled()) {
+    const stripe = await getStripe();
+    try {
+      await stripe.subscriptions.cancel(rec.subscriptionId);
+    } catch (err: any) {
+      // Already canceled/missing on Stripe is fine; anything else must stop the deletion.
+      if (err?.code !== "resource_missing") throw err;
+    }
+  }
+  if (rec?.customerId) await s.del(`cust:${rec.customerId}`);
+  await s.del(`pro:${email}`);
+}
+
 async function emailForCustomer(customerId: string | undefined, hint?: string | null): Promise<string | null> {
   const fromHint = normalizeEmail(hint);
   if (fromHint) return fromHint;

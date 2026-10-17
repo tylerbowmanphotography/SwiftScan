@@ -42,6 +42,10 @@ export function startSession(req: Request, res: Response, email: string) {
   setCookie(req, res, SESSION_COOKIE, createSessionToken(email), SESSION_DAYS * 86400);
 }
 
+export function endSession(req: Request, res: Response) {
+  clearCookie(req, res, SESSION_COOKIE);
+}
+
 // ---- users ----------------------------------------------------------------
 
 export interface UserRecord {
@@ -145,7 +149,7 @@ export function registerAuthRoutes(app: Express) {
   });
 
   app.post(["/api/auth/logout", "/api/auth/logout/"], (req, res) => {
-    clearCookie(req, res, SESSION_COOKIE);
+    endSession(req, res);
     res.json({ success: true });
   });
 }

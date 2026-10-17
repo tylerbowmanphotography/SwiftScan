@@ -4,6 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { registerMonetizationRoutes, scanQuota } from "./server/monetization";
 import { registerAuthRoutes } from "./server/auth";
+import { registerAccountRoutes } from "./server/account";
 import { registerAlertRoutes, type PriceEstimate } from "./server/alerts";
 
 dotenv.config();
@@ -44,13 +45,29 @@ const GEMINI_MODELS: string[] = [
 
 let lastGeminiError = "";
 
-// Try each model in turn; throws the last error if every model fails.
-async function generateWithFallback(params: { contents: any; config?: any }): Promise<string> {
+// Vercel stops a function at 60s (vercel.json maxDuration). Keep every AI chain inside that,
+// so a slow model falls through to the next one instead of the whole request timing out.
+const AI_BUDGET_MS = 50_000;
+const AI_PER_MODEL_MS = 25_000;
+
+// Try each model in turn; throws the last error if every model fails or time runs out.
+async function generateWithFallback(
+  params: { contents: any; config?: any },
+  opts: { deadline?: number; perModelMs?: number } = {},
+): Promise<string> {
   const ai = getGeminiClient();
+  const deadline = opts.deadline ?? Date.now() + AI_BUDGET_MS;
+  const perModelMs = opts.perModelMs ?? AI_PER_MODEL_MS;
   let lastErr: any = null;
   for (const model of GEMINI_MODELS) {
+    const left = deadline - Date.now();
+    if (left < 3000) {
+      lastErr = lastErr || new Error("AI request ran out of time");
+      break;
+    }
     try {
-      const response = await ai.models.generateContent({ model, ...params });
+      const abortSignal = AbortSignal.timeout(Math.min(perModelMs, left));
+      const response = await ai.models.generateContent({ model, ...params, config: { ...(params.config || {}), abortSignal } });
       const text = response.text || "";
       if (text) return text;
       lastErr = new Error(`Model ${model} returned an empty response`);
@@ -90,6 +107,7 @@ function getGeminiClient() {
 
 // Accounts + monetization: /api/auth/*, /api/config, /api/checkout*, /api/billing-portal, /api/stripe-webhook
 registerAuthRoutes(app);
+registerAccountRoutes(app);
 registerMonetizationRoutes(app);
 
 // Health check endpoint
@@ -435,6 +453,7 @@ registerAlertRoutes(app, estimateCurrentPrice);
 
 // Main Product Scan API endpoint
 app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {
+  const startedAt = Date.now();
   const { imageBase64, mimeType = "image/jpeg", textQuery, barcode, correctionHint } = req.body || {};
 
   // Check if at least one input field is provided
@@ -593,6 +612,8 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
 
     let responseText = "";
     let aiError = "";
+    // One time budget for the whole scan: grounded search gets up to ~30s, then plain JSON mode gets the rest.
+    const scanDeadline = startedAt + AI_BUDGET_MS;
 
     // Prefer Google Search grounding for real prices; fall back to plain JSON mode.
     // (JSON response mode and search tools can't be combined, so grounded replies are parsed from text.)
@@ -600,7 +621,7 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
       responseText = await generateWithFallback({
         contents: { parts },
         config: { tools: [{ googleSearch: {} }] },
-      });
+      }, { deadline: Math.min(scanDeadline, Date.now() + 30_000) });
       extractAndParseJSON(responseText);
     } catch (groundedErr: any) {
       console.warn("Grounded Gemini call failed, retrying without search:", groundedErr?.message || groundedErr);
@@ -609,7 +630,7 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
         responseText = await generateWithFallback({
           contents: { parts },
           config: { responseMimeType: "application/json" },
-        });
+        }, { deadline: scanDeadline, perModelMs: 20_000 });
       } catch (aiErr: any) {
         aiError = String(aiErr?.message || aiErr).slice(0, 300);
         console.warn("All Gemini models failed for scan:", aiError);

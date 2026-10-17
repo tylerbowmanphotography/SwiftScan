@@ -20,7 +20,7 @@ const mono = await import("../server/monetization");
 const alertsMod = await import("../server/alerts");
 
 const realStripe = new Stripe("sk_test_dummy");
-const stripeCalls: { checkout: any[]; portal: any[] } = { checkout: [], portal: [] };
+const stripeCalls: { checkout: any[]; portal: any[]; canceled: string[] } = { checkout: [], portal: [], canceled: [] };
 mono.setStripeForTests({
   webhooks: realStripe.webhooks,
   checkout: {
@@ -31,6 +31,7 @@ mono.setStripeForTests({
   },
   billingPortal: { sessions: { create: async (p: any) => (stripeCalls.portal.push(p), { url: "https://billing.stripe.test/p/1" }) } },
   customers: { retrieve: async (id: string) => ({ id, email: "lookup@example.com" }) },
+  subscriptions: { cancel: async (id: string) => (stripeCalls.canceled.push(id), { id, status: "canceled" }) },
 });
 let sessionOwner = "pat@example.com";
 
@@ -104,6 +105,7 @@ beforeEach(() => {
   sent.length = 0;
   stripeCalls.checkout.length = 0;
   stripeCalls.portal.length = 0;
+  stripeCalls.canceled.length = 0;
   resendFails = false;
 });
 
@@ -289,6 +291,31 @@ test("checkout verify records Pro for the signed-in owner only", async () => {
   const ok = await c.get("/api/checkout/verify?session_id=cs_test_1");
   assert.equal(ok.status, 200);
   assert.equal(ok.json.usage.isPro, true);
+});
+
+test("account deletion: requires sign-in and confirmation, cancels Pro, removes all data, signs out", async () => {
+  const db = new MemoryStore();
+  setStoreForTests(db);
+  const c = new Client();
+  assert.equal((await c.post("/api/account/delete", { confirm: true })).status, 401);
+  await signIn(c, "del@example.com");
+  await c.put("/api/items", { items: [{ id: "a", timestamp: 1, scanResult: { productName: "Thing" } }] });
+  assert.equal((await c.put("/api/alerts", { productName: "Thing", brand: "B", targetPrice: 10 })).status, 200);
+  await db.set("pro:del@example.com", { status: "active", customerId: "cus_del", subscriptionId: "sub_del", updatedAt: 1 });
+  await db.set("cus_del", "x"); // unrelated key stays
+  await db.set("cust:cus_del", "del@example.com");
+
+  assert.equal((await c.post("/api/account/delete", {})).status, 400);
+  const r = await c.post("/api/account/delete", { confirm: true });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(stripeCalls.canceled, ["sub_del"]);
+  for (const k of ["user:del@example.com", "items:del@example.com", "pro:del@example.com", "cust:cus_del"]) {
+    assert.equal(await db.get(k), null, k);
+  }
+  assert.deepEqual(await db.hgetall("alerts:del@example.com"), {});
+  assert.ok(!(await db.smembers("alerts:index")).includes("del@example.com"));
+  assert.equal(await db.get("cus_del"), "x");
+  assert.equal((await c.get("/api/items")).status, 401); // signed out
 });
 
 test("saved items sync", async () => {

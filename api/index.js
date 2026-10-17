@@ -178,6 +178,9 @@ function readSessionEmail(req) {
 function startSession(req, res, email) {
   setCookie(req, res, SESSION_COOKIE, createSessionToken(email), SESSION_DAYS * 86400);
 }
+function endSession(req, res) {
+  clearCookie(req, res, SESSION_COOKIE);
+}
 async function getUser(email) {
   const s = getStore();
   return s ? s.get(`user:${email}`) : null;
@@ -260,7 +263,7 @@ function registerAuthRoutes(app2) {
     }
   });
   app2.post(["/api/auth/logout", "/api/auth/logout/"], (req, res) => {
-    clearCookie(req, res, SESSION_COOKIE);
+    endSession(req, res);
     res.json({ success: true });
   });
 }
@@ -330,6 +333,21 @@ async function putProRecord(email, patch) {
     await s.set(`cust:${next.customerId}`, email);
     await upsertUser(email, { stripeCustomerId: next.customerId });
   }
+}
+async function endProForDeletedAccount(email) {
+  const s = getStore();
+  if (!s) return;
+  const rec = await getProRecord(email);
+  if (rec?.subscriptionId && rec.status !== "canceled" && isStripeEnabled()) {
+    const stripe = await getStripe();
+    try {
+      await stripe.subscriptions.cancel(rec.subscriptionId);
+    } catch (err) {
+      if (err?.code !== "resource_missing") throw err;
+    }
+  }
+  if (rec?.customerId) await s.del(`cust:${rec.customerId}`);
+  await s.del(`pro:${email}`);
 }
 async function emailForCustomer(customerId, hint) {
   const fromHint = normalizeEmail(hint);
@@ -673,6 +691,37 @@ function registerMonetizationRoutes(app2) {
   });
 }
 
+// server/account.ts
+async function deleteAccountData(email) {
+  const s = getStore();
+  if (!s) throw new Error("No database configured");
+  await endProForDeletedAccount(email);
+  await s.del(`alerts:${email}`);
+  await s.srem("alerts:index", email);
+  await s.del(`items:${email}`);
+  await s.del(`user:${email}`);
+}
+function registerAccountRoutes(app2) {
+  app2.post(["/api/account/delete", "/api/account/delete/"], async (req, res) => {
+    const email = getStore() ? readSessionEmail(req) : null;
+    if (!email) return res.status(401).json({ success: false, code: "SIGN_IN_REQUIRED", error: "Sign in to delete your account." });
+    if (req.body?.confirm !== true) {
+      return res.status(400).json({ success: false, error: "Confirm the deletion to continue." });
+    }
+    try {
+      await deleteAccountData(email);
+      endSession(req, res);
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("Account deletion failed:", err?.message || err);
+      return res.status(500).json({
+        success: false,
+        error: "We couldn't delete your account right now. Please try again, or email us and we'll do it for you."
+      });
+    }
+  });
+}
+
 // server/alerts.ts
 var INDEX_KEY = "alerts:index";
 var alertsKey = (email) => `alerts:${email}`;
@@ -981,12 +1030,22 @@ var GEMINI_MODELS = [
   "gemini-2.5-flash"
 ].filter((m, i, arr) => !!m && arr.indexOf(m) === i);
 var lastGeminiError = "";
-async function generateWithFallback(params) {
+var AI_BUDGET_MS = 5e4;
+var AI_PER_MODEL_MS = 25e3;
+async function generateWithFallback(params, opts = {}) {
   const ai = getGeminiClient();
+  const deadline = opts.deadline ?? Date.now() + AI_BUDGET_MS;
+  const perModelMs = opts.perModelMs ?? AI_PER_MODEL_MS;
   let lastErr = null;
   for (const model of GEMINI_MODELS) {
+    const left = deadline - Date.now();
+    if (left < 3e3) {
+      lastErr = lastErr || new Error("AI request ran out of time");
+      break;
+    }
     try {
-      const response = await ai.models.generateContent({ model, ...params });
+      const abortSignal = AbortSignal.timeout(Math.min(perModelMs, left));
+      const response = await ai.models.generateContent({ model, ...params, config: { ...params.config || {}, abortSignal } });
       const text = response.text || "";
       if (text) return text;
       lastErr = new Error(`Model ${model} returned an empty response`);
@@ -1021,6 +1080,7 @@ function getGeminiClient() {
   });
 }
 registerAuthRoutes(app);
+registerAccountRoutes(app);
 registerMonetizationRoutes(app);
 app.get(["/api/health", "/api/health/"], (req, res) => {
   res.json({
@@ -1274,6 +1334,7 @@ These are estimates. If you cannot find a credible price, return {"lowestPrice":
 }
 registerAlertRoutes(app, estimateCurrentPrice);
 app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {
+  const startedAt = Date.now();
   const { imageBase64, mimeType = "image/jpeg", textQuery, barcode, correctionHint } = req.body || {};
   if (!imageBase64 && !textQuery && !barcode && !correctionHint) {
     return res.status(400).json({
@@ -1404,11 +1465,12 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
     parts.push({ text: promptText });
     let responseText = "";
     let aiError = "";
+    const scanDeadline = startedAt + AI_BUDGET_MS;
     try {
       responseText = await generateWithFallback({
         contents: { parts },
         config: { tools: [{ googleSearch: {} }] }
-      });
+      }, { deadline: Math.min(scanDeadline, Date.now() + 3e4) });
       extractAndParseJSON(responseText);
     } catch (groundedErr) {
       console.warn("Grounded Gemini call failed, retrying without search:", groundedErr?.message || groundedErr);
@@ -1417,7 +1479,7 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
         responseText = await generateWithFallback({
           contents: { parts },
           config: { responseMimeType: "application/json" }
-        });
+        }, { deadline: scanDeadline, perModelMs: 2e4 });
       } catch (aiErr) {
         aiError = String(aiErr?.message || aiErr).slice(0, 300);
         console.warn("All Gemini models failed for scan:", aiError);
