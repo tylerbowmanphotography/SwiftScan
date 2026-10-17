@@ -1030,12 +1030,22 @@ var GEMINI_MODELS = [
   "gemini-2.5-flash"
 ].filter((m, i, arr) => !!m && arr.indexOf(m) === i);
 var lastGeminiError = "";
-async function generateWithFallback(params) {
+var AI_BUDGET_MS = 5e4;
+var AI_PER_MODEL_MS = 25e3;
+async function generateWithFallback(params, opts = {}) {
   const ai = getGeminiClient();
+  const deadline = opts.deadline ?? Date.now() + AI_BUDGET_MS;
+  const perModelMs = opts.perModelMs ?? AI_PER_MODEL_MS;
   let lastErr = null;
   for (const model of GEMINI_MODELS) {
+    const left = deadline - Date.now();
+    if (left < 3e3) {
+      lastErr = lastErr || new Error("AI request ran out of time");
+      break;
+    }
     try {
-      const response = await ai.models.generateContent({ model, ...params });
+      const abortSignal = AbortSignal.timeout(Math.min(perModelMs, left));
+      const response = await ai.models.generateContent({ model, ...params, config: { ...params.config || {}, abortSignal } });
       const text = response.text || "";
       if (text) return text;
       lastErr = new Error(`Model ${model} returned an empty response`);
@@ -1324,6 +1334,7 @@ These are estimates. If you cannot find a credible price, return {"lowestPrice":
 }
 registerAlertRoutes(app, estimateCurrentPrice);
 app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {
+  const startedAt = Date.now();
   const { imageBase64, mimeType = "image/jpeg", textQuery, barcode, correctionHint } = req.body || {};
   if (!imageBase64 && !textQuery && !barcode && !correctionHint) {
     return res.status(400).json({
@@ -1454,11 +1465,12 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
     parts.push({ text: promptText });
     let responseText = "";
     let aiError = "";
+    const scanDeadline = startedAt + AI_BUDGET_MS;
     try {
       responseText = await generateWithFallback({
         contents: { parts },
         config: { tools: [{ googleSearch: {} }] }
-      });
+      }, { deadline: Math.min(scanDeadline, Date.now() + 3e4) });
       extractAndParseJSON(responseText);
     } catch (groundedErr) {
       console.warn("Grounded Gemini call failed, retrying without search:", groundedErr?.message || groundedErr);
@@ -1467,7 +1479,7 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
         responseText = await generateWithFallback({
           contents: { parts },
           config: { responseMimeType: "application/json" }
-        });
+        }, { deadline: scanDeadline, perModelMs: 2e4 });
       } catch (aiErr) {
         aiError = String(aiErr?.message || aiErr).slice(0, 300);
         console.warn("All Gemini models failed for scan:", aiError);
