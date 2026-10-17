@@ -32,6 +32,9 @@ export default function ScanScreen() {
   const selectedLens = closeUp && hasLens(CLOSE_UP_LENS) ? CLOSE_UP_LENS : hasLens(WIDE_LENS) ? WIDE_LENS : undefined;
   const [preview, setPreview] = useState<string | null>(null);
   const [status, setStatus] = useState('');
+  // Barcode that isn't listed anywhere: shown as a banner, and ignored by the live scanner so it
+  // doesn't look the same code up again and again while it's still in view.
+  const [missed, setMissed] = useState<string | null>(null);
   const { run, busy } = useRunScan();
 
   const unlockSoon = () =>
@@ -43,11 +46,15 @@ export default function ScanScreen() {
   const onBarcode = async (res: BarcodeScanningResult) => {
     const code = res.data?.replace(/\D/g, '');
     if (locked.current || !code || code.length < 8 || code.length > 14) return;
+    if (code === missed || code === pendingBarcode.current) return;
     locked.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     setStatus(`Looking up ${code}…`);
-    const out = await run({ barcode: code }, 'barcode');
-    if (out.kind === 'notFound') pendingBarcode.current = out.barcode;
+    const out = await run({ barcode: code }, 'barcode', { quietNotFound: true });
+    if (out.kind === 'notFound') {
+      pendingBarcode.current = out.barcode;
+      setMissed(out.barcode);
+    }
     if (out.kind !== 'found') unlockSoon();
   };
 
@@ -59,7 +66,10 @@ export default function ScanScreen() {
       const img = await prepareForScan(uri, width);
       const linkBarcode = pendingBarcode.current ?? undefined;
       const out = await run({ imageBase64: img.base64, mimeType: img.mimeType, linkBarcode }, 'camera', { thumbnailUrl: img.uri });
-      if (out.kind === 'found') pendingBarcode.current = null;
+      if (out.kind === 'found') {
+        pendingBarcode.current = null;
+        setMissed(null);
+      }
       if (out.kind !== 'found') unlockSoon();
     } catch (e: any) {
       Alert.alert('Photo problem', e?.message || 'Could not use that photo.');
@@ -129,7 +139,7 @@ export default function ScanScreen() {
           <View style={[styles.corner, { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 18 }]} />
           <View style={[styles.corner, { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 18 }]} />
         </View>
-        <Text style={styles.hint}>{busy ? '' : closeUp ? 'Close-up: hold the phone a few inches away' : 'Aim at a barcode, or tap the shutter to snap the item'}</Text>
+        <Text style={styles.hint}>{busy || missed ? '' : closeUp ? 'Close-up: hold the phone a few inches away' : 'Aim at a barcode, or tap the shutter to snap the item'}</Text>
       </View>
 
       {/* Top controls */}
@@ -141,6 +151,33 @@ export default function ScanScreen() {
           <Ionicons name={torch ? 'flash' : 'flash-off'} size={22} color={torch ? colors.amber : '#fff'} />
         </Pressable>
       </View>
+
+      {/* Barcode not listed anywhere: ask for a photo of the item instead */}
+      {missed && !busy ? (
+        <View style={[styles.missCard, { top: insets.top + 64 }]}>
+          <View style={styles.missHead}>
+            <Ionicons name="barcode-outline" size={20} color={colors.amber} />
+            <Text style={styles.missTitle}>Barcode {missed} isn&apos;t listed anywhere yet</Text>
+          </View>
+          <Text style={styles.missBody}>
+            Tap the shutter to snap the front of the item and we&apos;ll identify it from the photo. We&apos;ll remember this barcode, so next time it scans instantly.
+          </Text>
+          <View style={styles.missActions}>
+            <Pressable onPress={() => router.replace({ pathname: '/search', params: { q: '', link: missed } })} hitSlop={8}>
+              <Text style={styles.missLink}>Search by name</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                pendingBarcode.current = null;
+                setMissed(null);
+              }}
+              hitSlop={8}
+            >
+              <Text style={styles.missDismiss}>Scan another</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
 
       {/* Lens switch: normal or close-up (ultra-wide) */}
       {hasLens(CLOSE_UP_LENS) && !busy ? (
@@ -210,6 +247,13 @@ const styles = StyleSheet.create({
   close: { position: 'absolute', left: 16, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   permTitle: { color: colors.text, fontSize: 24, fontWeight: '800', marginTop: 16 },
   permBody: { color: colors.textMuted, fontSize: 16, lineHeight: 23, textAlign: 'center', marginTop: 10 },
+  missCard: { position: 'absolute', left: 16, right: 16, backgroundColor: 'rgba(16,20,38,0.94)', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: 'rgba(251,191,36,0.4)' },
+  missHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  missTitle: { color: colors.text, fontSize: 16, fontWeight: '800', flex: 1 },
+  missBody: { color: colors.textMuted, fontSize: 14, lineHeight: 20, marginTop: 6 },
+  missActions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
+  missLink: { color: colors.pink400, fontSize: 15, fontWeight: '700' },
+  missDismiss: { color: colors.textMuted, fontSize: 15, fontWeight: '600' },
   busy: { backgroundColor: 'rgba(7,11,25,0.72)' },
   busyCard: { backgroundColor: colors.ink900, borderRadius: 24, padding: 26, alignItems: 'center', marginHorizontal: 40, borderWidth: 1, borderColor: colors.line },
   busyTitle: { color: colors.text, fontSize: 17, fontWeight: '700', marginTop: 14, textAlign: 'center' },
