@@ -1031,8 +1031,7 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 var GEMINI_MODELS = [
   process.env.GEMINI_MODEL,
   "gemini-3.8-flash",
-  "gemini-3.5-flash-lite",
-  "gemini-2.5-flash"
+  "gemini-3.5-flash-lite"
 ].filter((m, i, arr) => !!m && arr.indexOf(m) === i);
 var lastGeminiError = "";
 var AI_BUDGET_MS = 5e4;

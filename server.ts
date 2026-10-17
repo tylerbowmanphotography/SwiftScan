@@ -36,13 +36,12 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// Gemini models, tried in order. 2.5 models are kept last because Google now only
-// serves them to API keys that have used them before. Override with GEMINI_MODEL.
+// Gemini models, tried in order (gemini-2.5-flash was removed: Google no longer serves it to this key).
+// Override with GEMINI_MODEL.
 const GEMINI_MODELS: string[] = [
   process.env.GEMINI_MODEL,
   "gemini-3.8-flash",
   "gemini-3.5-flash-lite",
-  "gemini-2.5-flash",
 ].filter((m, i, arr): m is string => !!m && arr.indexOf(m) === i);
 
 let lastGeminiError = "";
