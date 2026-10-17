@@ -42,6 +42,10 @@ const GEMINI_MODELS: string[] = [
   process.env.GEMINI_MODEL,
   "gemini-3.8-flash",
   "gemini-3.5-flash-lite",
+  // More free-tier models. Each has its own daily allowance, so they act as overflow;
+  // an ID Google doesn't serve to this key just fails fast and is skipped.
+  "gemini-3.6-flash",
+  "gemini-3.1-flash-lite",
 ].filter((m, i, arr): m is string => !!m && arr.indexOf(m) === i);
 
 let lastGeminiError = "";
@@ -49,7 +53,10 @@ let lastGeminiError = "";
 // Vercel stops a function at 60s (vercel.json maxDuration). Keep every AI chain inside that,
 // so a slow model falls through to the next one instead of the whole request timing out.
 const AI_BUDGET_MS = 50_000;
-const SCAN_CACHE_SECONDS = 12 * 3600;
+const SCAN_CACHE_SECONDS = 3 * 86400;
+// Google Search grounding isn't available on the free Gemini API tier, and each failed grounded
+// attempt still uses up free requests. Only turn it on (GEMINI_SEARCH=1) once the key has billing.
+const SEARCH_GROUNDING = process.env.GEMINI_SEARCH === "1";
 const AI_PER_MODEL_MS = 25_000;
 
 // Try each model in turn; throws the last error if every model fails or time runs out.
@@ -310,7 +317,7 @@ async function lookupBarcode(variants: string[]): Promise<BarcodeLookupOutcome> 
 // on a product page; the result is shown as unverified ("matched by web search").
 const WEB_LOOKUP_SOURCE = "Web search";
 async function identifyBarcodeOnWeb(code: string, deadline: number): Promise<BarcodeProduct | null> {
-  if (!resolveGeminiKey().key) return null;
+  if (!resolveGeminiKey().key || !SEARCH_GROUNDING) return null;
   const prompt = `Search the web for the retail product barcode (UPC/EAN/GTIN) ${code}.
 Only answer with a product if you find a page (retailer, manufacturer or barcode database) that lists exactly this number ${code} for that product.
 Reply with ONLY this JSON, no other text:
@@ -466,6 +473,7 @@ Use web search if available. Return ONLY valid JSON (no markdown):
 These are estimates. If you cannot find a credible price, return {"lowestPrice": null}.`;
   let text = "";
   try {
+    if (!SEARCH_GROUNDING) throw new Error("search grounding off");
     text = await generateWithFallback({ contents: prompt, config: { tools: [{ googleSearch: {} }] } });
     extractAndParseJSON(text);
   } catch {
@@ -672,13 +680,14 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
     // Prefer Google Search grounding for real prices; fall back to plain JSON mode.
     // (JSON response mode and search tools can't be combined, so grounded replies are parsed from text.)
     try {
+      if (!SEARCH_GROUNDING) throw new Error("search grounding off");
       responseText = await generateWithFallback({
         contents: { parts },
         config: { tools: [{ googleSearch: {} }] },
       }, { deadline: Math.min(scanDeadline, Date.now() + 30_000) });
       extractAndParseJSON(responseText);
     } catch (groundedErr: any) {
-      console.warn("Grounded Gemini call failed, retrying without search:", groundedErr?.message || groundedErr);
+      if (SEARCH_GROUNDING) console.warn("Grounded Gemini call failed, retrying without search:", groundedErr?.message || groundedErr);
       responseText = "";
       try {
         responseText = await generateWithFallback({
@@ -755,8 +764,18 @@ Provide a direct, accurate, and structured answer to the user's question. Includ
 app.post(["/api/autocomplete", "/api/autocomplete/"], async (req, res) => {
   const { query } = req.body || {};
   
-  if (!query || query.length < 2) {
+  const q = typeof query === "string" ? query.trim().toLowerCase().slice(0, 80) : "";
+  // Suggestions use the same AI allowance as scans, so wait for 3 letters and reuse answers for a week.
+  if (q.length < 3) {
     return res.json({ suggestions: [] });
+  }
+  const store = getStore();
+  const key = `suggest:v1:${hashShort(q, 32)}`;
+  if (store) {
+    try {
+      const hit = await store.get<string[]>(key);
+      if (Array.isArray(hit)) return res.json({ suggestions: hit });
+    } catch {}
   }
 
   try {
@@ -768,7 +787,9 @@ app.post(["/api/autocomplete", "/api/autocomplete/"], async (req, res) => {
     });
 
     try {
-      const suggestions = JSON.parse(suggestionsText || "[]");
+      const parsed = JSON.parse(suggestionsText || "[]");
+      const suggestions = Array.isArray(parsed) ? parsed.filter((x) => typeof x === "string").slice(0, 6) : [];
+      if (store && suggestions.length) await store.set(key, suggestions, { ex: 7 * 86400 }).catch(() => {});
       return res.json({ suggestions });
     } catch(e) {
       return res.json({ suggestions: generateFallbackSuggestions(query) });
