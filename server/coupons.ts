@@ -46,6 +46,9 @@ export function buildCouponPrompt(productName: string, brand?: string, category?
 - Brand: ${brand || "unknown"}
 - Category: ${category || "unknown"}
 
+You MUST use Google Search before answering. Run several searches, for example:
+"${productName} coupon", "${brand || productName} coupon", "${brand || productName} promo code", "${productName} rebate", "${productName} sale".
+
 Look for: promo codes, store coupons (Amazon clip coupons, Target Circle, Walmart, Best Buy, etc.), manufacturer coupons, mail-in or instant rebates, and current sales on this product or its brand.
 Rules:
 - Only include a deal you actually found on a web page in your search results, and give that page's exact URL.

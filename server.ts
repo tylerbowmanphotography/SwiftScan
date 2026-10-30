@@ -837,7 +837,7 @@ app.post(["/api/coupons", "/api/coupons/"], async (req, res) => {
   }
 
   const store = getStore();
-  const key = `coupons:v2:${hashShort(couponCacheKey(productName, brand), 32)}`;
+  const key = `coupons:v3:${hashShort(couponCacheKey(productName, brand), 32)}`;
   if (store) {
     try {
       const hit = await store.get<CouponResult>(key);
@@ -846,10 +846,17 @@ app.post(["/api/coupons", "/api/coupons/"], async (req, res) => {
   }
 
   try {
-    const { text, response } = await generateWithFallbackRaw(
-      { contents: buildCouponPrompt(productName, brand, category), config: { tools: [{ googleSearch: {} }] } },
-      { deadline: Date.now() + 40_000, perModelMs: 25_000 },
-    );
+    const deadline = Date.now() + 45_000;
+    const ask = () =>
+      generateWithFallbackRaw(
+        { contents: buildCouponPrompt(productName, brand, category), config: { tools: [{ googleSearch: {} }] } },
+        { deadline, perModelMs: 25_000 },
+      );
+    let { text, response } = await ask();
+    // The model sometimes answers without searching at all; its answer is then worthless. Retry once.
+    if (groundedSources(response).domains.size === 0 && deadline - Date.now() > 15_000) {
+      ({ text, response } = await ask());
+    }
     const parsed = extractAndParseJSON(text);
     const grounded = groundedSources(response);
     const coupons = cleanCoupons(parsed, grounded.domains, new Date(), grounded.redirects);
