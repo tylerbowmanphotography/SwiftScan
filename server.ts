@@ -8,6 +8,14 @@ import { registerAccountRoutes } from "./server/account";
 import { registerAlertRoutes, type PriceEstimate } from "./server/alerts";
 import { getStore } from "./server/db";
 import { hashShort } from "./server/util";
+import {
+  buildCouponPrompt,
+  cleanCoupons,
+  couponCacheKey,
+  fallbackCouponLinks,
+  groundedDomains,
+  type CouponResult,
+} from "./server/coupons";
 
 dotenv.config();
 
@@ -64,6 +72,14 @@ async function generateWithFallback(
   params: { contents: any; config?: any },
   opts: { deadline?: number; perModelMs?: number } = {},
 ): Promise<string> {
+  return (await generateWithFallbackRaw(params, opts)).text;
+}
+
+// Same, but also returns the raw response (e.g. for Google Search grounding metadata).
+async function generateWithFallbackRaw(
+  params: { contents: any; config?: any },
+  opts: { deadline?: number; perModelMs?: number } = {},
+): Promise<{ text: string; response: any }> {
   const ai = getGeminiClient();
   const deadline = opts.deadline ?? Date.now() + AI_BUDGET_MS;
   const perModelMs = opts.perModelMs ?? AI_PER_MODEL_MS;
@@ -78,7 +94,7 @@ async function generateWithFallback(
       const abortSignal = AbortSignal.timeout(Math.min(perModelMs, left));
       const response = await ai.models.generateContent({ model, ...params, config: { ...(params.config || {}), abortSignal } });
       const text = response.text || "";
-      if (text) return text;
+      if (text) return { text, response };
       lastErr = new Error(`Model ${model} returned an empty response`);
     } catch (err: any) {
       lastErr = err;
@@ -802,6 +818,47 @@ Provide a direct, accurate, and structured answer to the user's question. Includ
   }
 });
 
+// Coupon finder: on demand from the result screen ("Find coupons"). Uses Google Search grounding,
+// keeps only coupons whose source page Google actually returned, and caches answers for a day.
+const COUPON_CACHE_SECONDS = 86400;
+app.post(["/api/coupons", "/api/coupons/"], async (req, res) => {
+  const productName = typeof req.body?.productName === "string" ? req.body.productName.trim().slice(0, 200) : "";
+  const brand = typeof req.body?.brand === "string" ? req.body.brand.trim().slice(0, 80) : "";
+  const category = typeof req.body?.category === "string" ? req.body.category.trim().slice(0, 80) : "";
+  if (productName.length < 2) {
+    return res.status(400).json({ success: false, error: "Product name required." });
+  }
+  const links = fallbackCouponLinks(productName, brand);
+  const empty: CouponResult = { coupons: [], links, searchedAt: new Date().toISOString() };
+  // Without billing/search grounding there is no trustworthy source for coupons: just give links.
+  if (!resolveGeminiKey().key || !SEARCH_GROUNDING) {
+    return res.json({ success: true, ...empty, searched: false });
+  }
+
+  const store = getStore();
+  const key = `coupons:v1:${hashShort(couponCacheKey(productName, brand), 32)}`;
+  if (store) {
+    try {
+      const hit = await store.get<CouponResult>(key);
+      if (hit && Array.isArray(hit.coupons)) return res.json({ success: true, ...hit, links, searched: true, cached: true });
+    } catch {}
+  }
+
+  try {
+    const { text, response } = await generateWithFallbackRaw(
+      { contents: buildCouponPrompt(productName, brand, category), config: { tools: [{ googleSearch: {} }] } },
+      { deadline: Date.now() + 40_000, perModelMs: 25_000 },
+    );
+    const coupons = cleanCoupons(extractAndParseJSON(text), groundedDomains(response));
+    const result: CouponResult = { coupons, links, searchedAt: new Date().toISOString() };
+    if (store) await store.set(key, result, { ex: COUPON_CACHE_SECONDS }).catch(() => {});
+    return res.json({ success: true, ...result, searched: true });
+  } catch (err: any) {
+    console.warn("Coupon search failed:", err?.message || err);
+    return res.json({ success: true, ...empty, searched: false });
+  }
+});
+
 // Autocomplete / Search Suggestions (Low Latency)
 app.post(["/api/autocomplete", "/api/autocomplete/"], async (req, res) => {
   const { query } = req.body || {};
@@ -901,6 +958,7 @@ app.all("/api/*", (req, res) => {
       "/api/health",
       "/api/scan",
       "/api/ask",
+      "/api/coupons",
       "/api/autocomplete",
       "/api/local-stores",
       "/api/config",
