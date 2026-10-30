@@ -13,6 +13,7 @@ process.env.CRON_SECRET = "cron_test_secret";
 process.env.AUTH_SECRET = "test-auth-secret";
 process.env.AMAZON_ASSOCIATE_TAG = "tester-20";
 process.env.FREE_SCANS_PER_DAY = "2";
+process.env.PRO_SALES = "on";
 
 const { default: app } = await import("../server");
 const { MemoryStore, setStoreForTests } = await import("../server/db");
@@ -459,4 +460,19 @@ test("coupons: validates input; without search grounding returns search links on
   assert.deepEqual(r.json.coupons, []);
   assert.equal(r.json.links.length, 3);
   assert.ok(r.json.links.every((l: any) => l.url.startsWith("https://www.google.com/search?q=")));
+});
+
+test("pro sales off: no upgrade offered or sold, free limit still enforced", async () => {
+  process.env.PRO_SALES = "off";
+  try {
+    const c = new Client();
+    const cfg = await c.get("/api/config");
+    assert.deepEqual(cfg.json.paid, { enabled: false, comingSoon: false });
+    assert.equal(cfg.json.usage.limit, 2);
+    const co = await c.post("/api/checkout");
+    assert.equal(co.status, 503);
+    assert.equal(stripeCalls.checkout.length, 0);
+  } finally {
+    process.env.PRO_SALES = "on";
+  }
 });

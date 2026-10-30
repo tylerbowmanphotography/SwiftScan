@@ -310,6 +310,8 @@ interface ProProps {
 export function ProSection({ paidEnabled, isPro, onSignInRequired }: ProProps) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // With Pro sales off, only people who already have Pro see this section.
+  if (!paidEnabled && !isPro) return null;
 
   const upgrade = async () => {
     setBusy(true);
