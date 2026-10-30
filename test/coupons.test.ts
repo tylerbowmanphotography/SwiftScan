@@ -1,7 +1,7 @@
 /** Coupon finder helpers. Run: npm test */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanCoupons, domainOf, fallbackCouponLinks, groundedDomains, MAX_COUPONS } from "../server/coupons";
+import { cleanCoupons, domainOf, fallbackCouponLinks, groundedDomains, groundedSources, MAX_COUPONS } from "../server/coupons";
 
 const NOW = new Date("2026-10-30T12:00:00Z");
 const grounding = (sites: string[]) => ({
@@ -72,4 +72,23 @@ test("fallbackCouponLinks: brand link only when the brand is known", () => {
   assert.equal(fallbackCouponLinks("AirPods Pro", "Apple").length, 3);
   assert.equal(fallbackCouponLinks("Mystery item", "Unknown brand").length, 2);
   assert.ok(fallbackCouponLinks("A&B", "X")[0].url.includes(encodeURIComponent("A&B")));
+});
+
+test("cleanCoupons accepts Google grounding redirect links and maps them to the real site", () => {
+  const R = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/";
+  const g = groundedSources({
+    candidates: [{ groundingMetadata: { groundingChunks: [{ web: { uri: R + "abc", title: "target.com" } }] } }],
+  });
+  const out = cleanCoupons(
+    {
+      coupons: [
+        { store: "Target", title: "$3 off with Circle", sourceUrl: R + "abc" },
+        { store: "Nowhere", title: "Unmapped redirect", sourceUrl: R + "zzz" },
+      ],
+    },
+    g.domains,
+    NOW,
+    g.redirects,
+  );
+  assert.deepEqual(out.map((c) => [c.store, c.sourceDomain, c.sourceUrl]), [["Target", "target.com", R + "abc"]]);
 });

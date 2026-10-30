@@ -68,19 +68,35 @@ export function domainOf(url: unknown): string | null {
   }
 }
 
-/** Sites Google Search returned for the grounded call (grounding chunk titles are domains). */
-export function groundedDomains(response: any): Set<string> {
-  const out = new Set<string>();
+export interface GroundedSources {
+  /** Sites Google Search returned for the call (grounding chunk titles are domains). */
+  domains: Set<string>;
+  /** Google redirect link -> the real site it points to. */
+  redirects: Map<string, string>;
+}
+
+const isGoogleRedirect = (d: string | null) => !!d && d.endsWith("vertexaisearch.cloud.google.com");
+
+export function groundedSources(response: any): GroundedSources {
+  const domains = new Set<string>();
+  const redirects = new Map<string, string>();
   const chunks = response?.candidates?.[0]?.groundingMetadata?.groundingChunks;
-  if (!Array.isArray(chunks)) return out;
+  if (!Array.isArray(chunks)) return { domains, redirects };
   for (const c of chunks) {
     const title = typeof c?.web?.title === "string" ? c.web.title.trim().toLowerCase().replace(/^www\./, "") : "";
-    if (title && title.includes(".")) out.add(title);
-    const d = domainOf(c?.web?.uri);
-    // Grounding URIs are usually Google redirect links; only count them when they're real sites.
-    if (d && !d.endsWith("vertexaisearch.cloud.google.com")) out.add(d);
+    const uri = typeof c?.web?.uri === "string" ? c.web.uri.trim() : "";
+    const d = domainOf(uri);
+    const site = title && title.includes(".") && !title.includes(" ") ? title : !isGoogleRedirect(d) ? d : null;
+    if (!site) continue;
+    domains.add(site);
+    if (isGoogleRedirect(d)) redirects.set(uri, site);
   }
-  return out;
+  return { domains, redirects };
+}
+
+/** Back-compat helper: just the domain set. */
+export function groundedDomains(response: any): Set<string> {
+  return groundedSources(response).domains;
 }
 
 function sameSite(domain: string, allowed: Set<string>): boolean {
@@ -94,14 +110,18 @@ function sameSite(domain: string, allowed: Set<string>): boolean {
  * Validate the model's coupon list. When `allowed` is non-empty, coupons whose source site
  * isn't in it are dropped. Expired coupons and duplicates are dropped too.
  */
-export function cleanCoupons(raw: any, allowed: Set<string>, now = new Date()): Coupon[] {
+export function cleanCoupons(raw: any, allowed: Set<string>, now = new Date(), redirects: Map<string, string> = new Map()): Coupon[] {
   const list = Array.isArray(raw?.coupons) ? raw.coupons : Array.isArray(raw) ? raw : [];
   const today = now.toISOString().slice(0, 10);
   const seen = new Set<string>();
   const out: Coupon[] = [];
   for (const c of list) {
     if (!c || typeof c !== "object") continue;
-    const sourceDomain = domainOf(c.sourceUrl);
+    const url = typeof c.sourceUrl === "string" ? c.sourceUrl.trim() : "";
+    const rawDomain = domainOf(url);
+    // The model often cites Google's grounding redirect link; it opens the real page, so keep it
+    // and use the site it points to. A redirect link we can't map came from nowhere: drop it.
+    const sourceDomain = isGoogleRedirect(rawDomain) ? redirects.get(url) ?? null : rawDomain;
     if (!sourceDomain) continue;
     if (allowed.size > 0 && !sameSite(sourceDomain, allowed)) continue;
     const title = String(c.title || "").trim().slice(0, 140);
@@ -114,7 +134,7 @@ export function cleanCoupons(raw: any, allowed: Set<string>, now = new Date()): 
     const key = `${store.toLowerCase()}|${(code || title).toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ store, title, kind: code ? "code" : kind, code, expires, sourceUrl: String(c.sourceUrl).trim(), sourceDomain });
+    out.push({ store, title, kind: code ? "code" : kind, code, expires, sourceUrl: url, sourceDomain });
     if (out.length >= MAX_COUPONS) break;
   }
   return out;

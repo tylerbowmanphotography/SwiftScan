@@ -12,8 +12,9 @@ import {
   buildCouponPrompt,
   cleanCoupons,
   couponCacheKey,
+  domainOf,
   fallbackCouponLinks,
-  groundedDomains,
+  groundedSources,
   type CouponResult,
 } from "./server/coupons";
 
@@ -836,7 +837,7 @@ app.post(["/api/coupons", "/api/coupons/"], async (req, res) => {
   }
 
   const store = getStore();
-  const key = `coupons:v1:${hashShort(couponCacheKey(productName, brand), 32)}`;
+  const key = `coupons:v2:${hashShort(couponCacheKey(productName, brand), 32)}`;
   if (store) {
     try {
       const hit = await store.get<CouponResult>(key);
@@ -849,9 +850,16 @@ app.post(["/api/coupons", "/api/coupons/"], async (req, res) => {
       { contents: buildCouponPrompt(productName, brand, category), config: { tools: [{ googleSearch: {} }] } },
       { deadline: Date.now() + 40_000, perModelMs: 25_000 },
     );
-    const coupons = cleanCoupons(extractAndParseJSON(text), groundedDomains(response));
+    const parsed = extractAndParseJSON(text);
+    const grounded = groundedSources(response);
+    const coupons = cleanCoupons(parsed, grounded.domains, new Date(), grounded.redirects);
+    const rawCount = Array.isArray(parsed?.coupons) ? parsed.coupons.length : 0;
+    if (rawCount !== coupons.length || coupons.length === 0) {
+      console.info(`Coupons for "${productName}": kept ${coupons.length} of ${rawCount}; grounded sites: ${[...grounded.domains].join(", ") || "none"}; sources: ${(parsed?.coupons || []).map((c: any) => domainOf(c?.sourceUrl) || "?").join(", ")}`);
+    }
     const result: CouponResult = { coupons, links, searchedAt: new Date().toISOString() };
-    if (store) await store.set(key, result, { ex: COUPON_CACHE_SECONDS }).catch(() => {});
+    // "Nothing found" is re-checked sooner than a real result.
+    if (store) await store.set(key, result, { ex: coupons.length ? COUPON_CACHE_SECONDS : 6 * 3600 }).catch(() => {});
     return res.json({ success: true, ...result, searched: true });
   } catch (err: any) {
     console.warn("Coupon search failed:", err?.message || err);
