@@ -39,7 +39,8 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
-import { ProductScanResult, ProductQAMessage } from '../types';
+import { ProductScanResult, ProductQAMessage, CouponSearch } from '../types';
+import { findCoupons } from '../utils/api';
 import { ReportIncorrectScanModal } from './ReportIncorrectScanModal';
 import { AdBanner } from './AdBanner';
 
@@ -65,7 +66,7 @@ export const ProductResultView: React.FC<ProductResultViewProps> = ({
   const [copied, setCopied] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'ask' | 'proscons' | 'prices' | 'localStores' | 'reviews' | 'specs'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'ask' | 'proscons' | 'prices' | 'coupons' | 'localStores' | 'reviews' | 'specs'>('overview');
 
   // Product Q&A state
   const [qaMessages, setQaMessages] = useState<ProductQAMessage[]>([]);
@@ -98,6 +99,30 @@ export const ProductResultView: React.FC<ProductResultViewProps> = ({
     } finally {
       setIsFetchingStores(false);
     }
+  };
+
+  // Coupons State (searched on demand when the Coupons tab is opened)
+  const [couponSearch, setCouponSearch] = useState<CouponSearch | null>(null);
+  const [isFetchingCoupons, setIsFetchingCoupons] = useState(false);
+  const [couponsError, setCouponsError] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  const fetchCoupons = async () => {
+    setIsFetchingCoupons(true);
+    setCouponsError(null);
+    try {
+      setCouponSearch(await findCoupons(result.productName, result.brand, result.category));
+    } catch (err: any) {
+      setCouponsError(err?.message || 'Could not search for coupons.');
+    } finally {
+      setIsFetchingCoupons(false);
+    }
+  };
+
+  const copyCouponCode = (code: string) => {
+    navigator.clipboard?.writeText(code).catch(() => {});
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode((c) => (c === code ? null : c)), 2000);
   };
 
   const SUGGESTED_QUESTIONS = [
@@ -523,6 +548,7 @@ Summary: ${result.summary}`;
             { id: 'ask', label: 'Ask Gemini 💬' },
             { id: 'proscons', label: 'Pros & Cons' },
             { id: 'prices', label: 'Store Prices' },
+            { id: 'coupons', label: 'Coupons 🏷️' },
             { id: 'localStores', label: 'Local Stores 📍' },
             { id: 'reviews', label: 'Reviews' },
             { id: 'specs', label: 'Specs' },
@@ -535,6 +561,9 @@ Summary: ${result.summary}`;
               setActiveTab(tab.id);
               if (tab.id === 'localStores' && localStores.length === 0 && !isFetchingStores) {
                 fetchLocalStores();
+              }
+              if (tab.id === 'coupons' && !couponSearch && !isFetchingCoupons) {
+                fetchCoupons();
               }
             }}
             className={`flex-1 min-h-11 py-2.5 px-4 text-sm font-bold rounded-xl transition-all whitespace-nowrap ${
@@ -969,6 +998,102 @@ Summary: ${result.summary}`;
       )}
 
       {/* TAB CONTENT: LOCAL STORES */}
+      {activeTab === 'coupons' && (
+        <div className="ss-card rounded-3xl p-6 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Tag size={18} className="text-pink-600" />
+              <span>Coupons &amp; Deals</span>
+            </h3>
+            {isFetchingCoupons && (
+              <span className="flex items-center gap-1.5 text-xs text-pink-700 dark:text-pink-300 font-medium">
+                <Loader2 size={14} className="animate-spin" /> Searching the web…
+              </span>
+            )}
+          </div>
+
+          {couponsError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 dark:bg-rose-950/60 dark:border-rose-900 dark:text-rose-300 rounded-xl text-xs font-semibold flex items-center justify-between gap-3">
+              <span>{couponsError}</span>
+              <button type="button" onClick={fetchCoupons} className="underline font-bold">Try again</button>
+            </div>
+          )}
+
+          {couponSearch && !isFetchingCoupons && (
+            <>
+              {couponSearch.coupons.length === 0 ? (
+                <p className="p-4 text-center text-sm text-slate-600 dark:text-slate-400">
+                  {couponSearch.searched
+                    ? 'No current coupons found for this item. Try the searches below.'
+                    : 'Coupon search is unavailable right now. Try the searches below.'}
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {couponSearch.coupons.map((c, idx) => (
+                    <div key={idx} className="p-4 flex flex-col sm:flex-row justify-between gap-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                      <div className="space-y-1 min-w-0">
+                        <span className="text-[11px] font-bold uppercase tracking-wide text-pink-700 dark:text-pink-300">{c.store}</span>
+                        <span className="font-bold text-sm text-slate-900 dark:text-white block">{c.title}</span>
+                        <span className="text-xs text-slate-500 block">
+                          {c.expires ? `Ends ${c.expires} · ` : ''}Found on {c.sourceDomain}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+                        {c.code && (
+                          <button
+                            type="button"
+                            onClick={() => copyCouponCode(c.code!)}
+                            className="px-3 py-2 border-2 border-dashed border-pink-400 text-pink-700 dark:text-pink-300 font-mono font-bold text-xs rounded-xl flex items-center gap-1.5"
+                            aria-label={`Copy code ${c.code}`}
+                          >
+                            {copiedCode === c.code ? <Check size={13} /> : <Copy size={13} />}
+                            <span>{copiedCode === c.code ? 'Copied' : c.code}</span>
+                          </button>
+                        )}
+                        <a
+                          href={getAffiliateUrl(c.sourceUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer sponsored"
+                          className="px-4 py-2 bg-pink-50 hover:bg-pink-100 dark:bg-pink-950 dark:hover:bg-pink-900 text-pink-700 dark:text-pink-400 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5"
+                        >
+                          <span>View deal</span>
+                          <ExternalLink size={13} />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {couponSearch.links.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {couponSearch.links.map((l) => (
+                    <a
+                      key={l.url}
+                      href={l.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 text-xs font-semibold rounded-full bg-slate-100 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 hover:text-pink-700 flex items-center gap-1"
+                    >
+                      <span>{l.label}</span>
+                      <ExternalLink size={11} />
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-500 flex items-start gap-1.5">
+                <Info size={12} className="shrink-0 mt-0.5" />
+                <span>
+                  Coupons are found on the web and aren't guaranteed. Check the terms at the store before you buy.
+                  {hasAffiliateIds() ? ' Some links may earn us a commission.' : ''}
+                </span>
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
       {activeTab === 'localStores' && (
         <div className="ss-card rounded-3xl p-6 space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">

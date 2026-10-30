@@ -98,3 +98,20 @@ export interface SampleProductPreset {
   imageUrl: string;
   description: string;
 }
+
+/** /api/coupons — coupons found by web search for a scanned product. */
+export interface Coupon {
+  store: string;
+  title: string;
+  kind: 'code' | 'deal' | 'store_coupon' | 'manufacturer' | 'rebate';
+  code?: string;
+  expires?: string;
+  sourceUrl: string;
+  sourceDomain: string;
+}
+
+export interface CouponSearch {
+  coupons: Coupon[];
+  links: { label: string; url: string }[];
+  searched: boolean;
+}

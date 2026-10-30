@@ -139,6 +139,33 @@ export async function localStores(productName: string): Promise<{ stores: LocalS
   return r.ok ? { stores: Array.isArray(r.data?.stores) ? r.data.stores : [] } : { stores: [], error: r.data?.error || "Couldn't find stores." };
 }
 
+export interface Coupon {
+  store: string;
+  title: string;
+  kind: 'code' | 'deal' | 'store_coupon' | 'manufacturer' | 'rebate';
+  code?: string;
+  expires?: string;
+  sourceUrl: string;
+  sourceDomain: string;
+}
+
+export interface CouponSearch {
+  coupons: Coupon[];
+  links: { label: string; url: string }[];
+  searched: boolean;
+  error?: string;
+}
+
+export async function findCoupons(p: ProductScanResult): Promise<CouponSearch> {
+  const r = await post('/api/coupons', { productName: p.productName, brand: p.brand, category: p.category }, 50000);
+  if (!r.ok || !r.data?.success) return { coupons: [], links: [], searched: false, error: r.data?.error || "Couldn't search for coupons." };
+  return {
+    coupons: Array.isArray(r.data.coupons) ? r.data.coupons : [],
+    links: Array.isArray(r.data.links) ? r.data.links : [],
+    searched: !!r.data.searched,
+  };
+}
+
 // ---- account (email one-time code) ------------------------------------------------------
 
 export async function requestCode(email: string) {

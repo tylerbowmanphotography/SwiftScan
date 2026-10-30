@@ -109,6 +109,7 @@ export default function ResultScreen() {
         ) : null}
 
         <PriceComparison r={r} />
+        <Coupons r={r} />
         <PriceHistory r={r} />
         <ProsCons r={r} />
 
@@ -396,7 +397,85 @@ function LocalStores({ r }: { r: ProductScanResult }) {
   );
 }
 
+function Coupons({ r }: { r: ProductScanResult }) {
+  const [result, setResult] = useState<api.CouponSearch | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    const res = await api.findCoupons(r);
+    setLoading(false);
+    if (res.error) {
+      Alert.alert('Coupons', res.error);
+      return;
+    }
+    setResult(res);
+  };
+
+  const open = (url: string, track = true) => {
+    const link = track ? getAffiliateUrl(url) : url;
+    if (link === '#') return;
+    Linking.openURL(link).catch(() => WebBrowser.openBrowserAsync(link));
+  };
+
+  return (
+    <Card style={{ gap: 12 }}>
+      <SectionTitle>Coupons & deals</SectionTitle>
+      {result === null ? (
+        <SecondaryButton
+          title={loading ? 'Searching the web…' : 'Find coupons'}
+          onPress={load}
+          disabled={loading}
+          icon={loading ? <ActivityIndicator color={colors.textMuted} /> : <Ionicons name="pricetags-outline" size={18} color={colors.textMuted} />}
+        />
+      ) : (
+        <>
+          {result.coupons.length === 0 ? (
+            <Text style={[styles.body, { color: colors.textMuted }]}>
+              {result.searched ? 'No current coupons found for this item. Try a search below.' : 'Coupon search is unavailable right now. Try a search below.'}
+            </Text>
+          ) : (
+            result.coupons.map((c, i) => (
+              <Pressable
+                key={i}
+                onPress={() => open(c.sourceUrl)}
+                style={({ pressed }) => [styles.storeRow, i > 0 && styles.divider, pressed && { opacity: 0.6 }]}
+                accessibilityRole="link"
+              >
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={[styles.subhead, { color: colors.pink400, fontSize: 12 }]}>{c.store}</Text>
+                  <Text style={styles.storeName}>{c.title}</Text>
+                  {c.code ? (
+                    <Text selectable style={styles.code} accessibilityHint="Long-press to copy the code">
+                      {c.code}
+                    </Text>
+                  ) : null}
+                  <Text style={styles.meta}>{`${c.expires ? `Ends ${c.expires} · ` : ''}Found on ${c.sourceDomain}`}</Text>
+                </View>
+                <Ionicons name="open-outline" size={18} color={colors.textMuted} />
+              </Pressable>
+            ))
+          )}
+          {result.links.length ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {result.links.map((l) => (
+                <Pressable key={l.url} onPress={() => open(l.url, false)} style={styles.chip} accessibilityRole="link">
+                  <Text style={styles.chipText}>{l.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          <Text style={[styles.disclaimer, { textAlign: 'left' }]}>
+            {`Coupons are found on the web and aren't guaranteed. Check the terms at the store.${result.coupons.some((c) => c.code) ? ' Long-press a code to copy it.' : ''}${hasAffiliateIds() ? ' Some links may earn us a commission.' : ''}`}
+          </Text>
+        </>
+      )}
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
+  code: { alignSelf: 'flex-start', color: colors.pink400, fontSize: 15, fontWeight: '800', letterSpacing: 1, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.pink400, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden', fontFamily: 'Menlo' },
   screen: { flex: 1, backgroundColor: colors.ink950 },
   thumb: { width: 76, height: 76, borderRadius: 18, backgroundColor: colors.ink800 },
   name: { color: colors.text, fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },

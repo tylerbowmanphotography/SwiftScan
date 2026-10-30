@@ -448,3 +448,15 @@ test("price alert cron: auth, notify once at/below target, re-arm after price ri
   assert.equal(r.json.success, true);
   assert.equal(r.json.failed, 2);
 });
+
+test("coupons: validates input; without search grounding returns search links only", async () => {
+  const c = new Client();
+  assert.equal((await c.post("/api/coupons", {})).status, 400);
+  const r = await c.post("/api/coupons", { productName: "AirPods Pro 2", brand: "Apple" });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.success, true);
+  assert.equal(r.json.searched, false);
+  assert.deepEqual(r.json.coupons, []);
+  assert.equal(r.json.links.length, 3);
+  assert.ok(r.json.links.every((l: any) => l.url.startsWith("https://www.google.com/search?q=")));
+});

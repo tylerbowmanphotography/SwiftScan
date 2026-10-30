@@ -1,3 +1,4 @@
+import type { CouponSearch } from '../types';
 import { setAffiliateConfig, AffiliateConfig } from './affiliate';
 
 export interface Usage {
@@ -141,4 +142,16 @@ export async function saveServerAlert(productName: string, brand: string | undef
 
 export async function removeServerAlert(productName: string): Promise<void> {
   await postJson('/api/alerts/remove', 'POST', { productName });
+}
+
+export async function findCoupons(productName: string, brand?: string, category?: string): Promise<CouponSearch> {
+  const res = await fetch('/api/coupons', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ productName, brand, category }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) throw new Error(data.error || 'Could not search for coupons.');
+  return { coupons: data.coupons || [], links: data.links || [], searched: !!data.searched };
 }
