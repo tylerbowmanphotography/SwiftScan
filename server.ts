@@ -839,7 +839,7 @@ app.post(["/api/coupons", "/api/coupons/"], async (req, res) => {
   }
 
   const store = getStore();
-  const key = `coupons:v4:${hashShort(couponCacheKey(productName, brand), 32)}`;
+  const key = `coupons:v5:${hashShort(couponCacheKey(productName, brand), 32)}`;
   if (store) {
     try {
       const hit = await store.get<CouponResult>(key);
@@ -867,7 +867,8 @@ app.post(["/api/coupons", "/api/coupons/"], async (req, res) => {
     const coupons = cleanCoupons(parsed, grounded.domains, new Date(), grounded.redirects);
     const rawCount = Array.isArray(parsed?.coupons) ? parsed.coupons.length : 0;
     if (rawCount !== coupons.length || coupons.length === 0) {
-      console.info(`Coupons for "${productName}": kept ${coupons.length} of ${rawCount}; grounded sites: ${[...grounded.domains].join(", ") || "none"}; sources: ${(parsed?.coupons || []).map((c: any) => domainOf(c?.sourceUrl) || "?").join(", ")}`);
+      const gm = response?.candidates?.[0]?.groundingMetadata;
+      console.info(`Coupons for "${productName}": kept ${coupons.length} of ${rawCount}; grounded sites: ${[...grounded.domains].join(", ") || "none"}; sources: ${(parsed?.coupons || []).map((c: any) => domainOf(c?.sourceUrl) || "?").join(", ")}; metadata keys: ${gm ? Object.keys(gm).join(",") : "none"}; queries: ${JSON.stringify(gm?.webSearchQueries || [])}; chunks: ${Array.isArray(gm?.groundingChunks) ? gm.groundingChunks.length : 0}; candidates: ${response?.candidates?.length ?? 0}; sample chunk: ${JSON.stringify(gm?.groundingChunks?.[0] || null).slice(0, 200)}`);
     }
     const result: CouponResult = { coupons, links, searchedAt: new Date().toISOString() };
     // "Nothing found" is re-checked sooner than a real result.
