@@ -822,6 +822,8 @@ Provide a direct, accurate, and structured answer to the user's question. Includ
 // Coupon finder: on demand from the result screen ("Find coupons"). Uses Google Search grounding,
 // keeps only coupons whose source page Google actually returned, and caches answers for a day.
 const COUPON_CACHE_SECONDS = 86400;
+// Less model "thinking" keeps the search fast; override with COUPON_THINKING (e.g. "medium").
+const COUPON_THINKING = process.env.COUPON_THINKING || "low";
 app.post(["/api/coupons", "/api/coupons/"], async (req, res) => {
   const productName = typeof req.body?.productName === "string" ? req.body.productName.trim().slice(0, 200) : "";
   const brand = typeof req.body?.brand === "string" ? req.body.brand.trim().slice(0, 80) : "";
@@ -837,7 +839,7 @@ app.post(["/api/coupons", "/api/coupons/"], async (req, res) => {
   }
 
   const store = getStore();
-  const key = `coupons:v3:${hashShort(couponCacheKey(productName, brand), 32)}`;
+  const key = `coupons:v4:${hashShort(couponCacheKey(productName, brand), 32)}`;
   if (store) {
     try {
       const hit = await store.get<CouponResult>(key);
@@ -846,11 +848,14 @@ app.post(["/api/coupons", "/api/coupons/"], async (req, res) => {
   }
 
   try {
-    const deadline = Date.now() + 45_000;
+    const deadline = Date.now() + 52_000;
     const ask = () =>
       generateWithFallbackRaw(
-        { contents: buildCouponPrompt(productName, brand, category), config: { tools: [{ googleSearch: {} }] } },
-        { deadline, perModelMs: 25_000 },
+        {
+          contents: buildCouponPrompt(productName, brand, category),
+          config: { tools: [{ googleSearch: {} }], thinkingConfig: { thinkingLevel: COUPON_THINKING } },
+        },
+        { deadline, perModelMs: 40_000 },
       );
     let { text, response } = await ask();
     // The model sometimes answers without searching at all; its answer is then worthless. Retry once.
