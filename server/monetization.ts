@@ -57,6 +57,13 @@ export const isStripeEnabled = () => {
   return !!(c.secretKey && c.priceId);
 };
 
+/**
+ * Whether new Pro upgrades are sold. Off unless PRO_SALES=on (and Stripe is configured).
+ * Turning sales off doesn't touch existing subscribers: their Pro status, the billing portal and
+ * the Stripe webhook keep working, so they can still manage or cancel.
+ */
+export const isProSalesOpen = () => isStripeEnabled() && clean(process.env.PRO_SALES).toLowerCase() === "on";
+
 /** Accounts (sign-in + stored Pro status) are on only when both the DB and the email provider are configured. */
 export const accountsEnabled = () => isAuthEnabled();
 
@@ -368,9 +375,11 @@ export async function scanQuota(req: Request, res: Response, next: NextFunction)
     return res.status(429).json({
       success: false,
       code: "FREE_LIMIT_REACHED",
-      error: `You've used your ${before.limit} free scans for today. Upgrade to SwiftScan Pro for unlimited scans, or come back tomorrow.`,
+      error: isProSalesOpen()
+        ? `You've used your ${before.limit} free scans for today. Upgrade to SwiftScan Pro for unlimited scans, or come back tomorrow.`
+        : `You've used your ${before.limit} free scans for today. Your free scans reset tomorrow.`,
       usage: beforeUsage,
-      upgrade: { available: isStripeEnabled() },
+      upgrade: { available: isProSalesOpen() },
     });
   }
   const originalJson = res.json.bind(res);
@@ -409,7 +418,8 @@ export function registerMonetizationRoutes(app: Express) {
         targetLinkPrefix: a.targetLinkPrefix || null,
         bestBuyLinkPrefix: a.bestBuyLinkPrefix || null,
       },
-      paid: { enabled: isStripeEnabled(), comingSoon: !isStripeEnabled() },
+      // comingSoon stays false: with sales off the apps show no upgrade offer at all.
+      paid: { enabled: isProSalesOpen(), comingSoon: false },
       accounts: { enabled: accountsEnabled() },
       user: email ? { email, isPro: usage.isPro } : null,
       usage,
@@ -417,12 +427,12 @@ export function registerMonetizationRoutes(app: Express) {
   });
 
   app.post(["/api/checkout", "/api/checkout/"], async (req, res) => {
-    if (!isStripeEnabled()) {
+    if (!isProSalesOpen()) {
       return res.status(503).json({
         success: false,
         enabled: false,
-        comingSoon: true,
-        error: "SwiftScan Pro is coming soon. Paid plans aren't open yet.",
+        comingSoon: false,
+        error: "SwiftScan Pro upgrades aren't available.",
       });
     }
     try {

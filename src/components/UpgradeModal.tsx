@@ -16,6 +16,27 @@ export function UpgradeModal({ open, message, paidEnabled, onClose, onSignInRequ
   const [note, setNote] = useState<string | null>(null);
   if (!open) return null;
 
+  // Pro isn't sold: just explain the daily limit.
+  if (!paidEnabled) {
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-ink-950/70 backdrop-blur-md" onClick={onClose} />
+        <div className="relative w-full max-w-md bg-white dark:bg-ink-900 rounded-[1.75rem] p-6 sm:p-7 shadow-2xl ring-1 ring-slate-200 dark:ring-white/10 space-y-4">
+          <button type="button" onClick={onClose} aria-label="Close" className="absolute top-4 right-4 h-9 w-9 flex items-center justify-center rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300">
+            <X size={16} />
+          </button>
+          <h3 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">You've hit today's free scan limit</h3>
+          <p className="text-sm text-slate-700 dark:text-slate-300">
+            {message || 'You get a few free scans each day. Your free scans reset tomorrow.'}
+          </p>
+          <button type="button" onClick={onClose} className="ss-btn-primary w-full min-h-[3.25rem] text-base">
+            OK
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const upgrade = async () => {
     setBusy(true);
     setNote(null);

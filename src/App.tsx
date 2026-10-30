@@ -615,13 +615,15 @@ export default function App() {
                 ? 'No free scans left today'
                 : `${usage.remaining} of ${usage.limit} free scans left today`}
             </span>
-            <button
-              type="button"
-              onClick={() => setLimitModal({})}
-              className="text-pink-700 dark:text-pink-300 font-extrabold underline underline-offset-4"
-            >
-              {appConfig?.paid.enabled ? 'Go Pro' : 'Pro coming soon'}
-            </button>
+            {appConfig?.paid.enabled ? (
+              <button
+                type="button"
+                onClick={() => setLimitModal({})}
+                className="text-pink-700 dark:text-pink-300 font-extrabold underline underline-offset-4"
+              >
+                Go Pro
+              </button>
+            ) : null}
           </div>
         )}
 
