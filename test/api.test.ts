@@ -476,3 +476,82 @@ test("pro sales off: no upgrade offered or sold, free limit still enforced", asy
     process.env.PRO_SALES = "on";
   }
 });
+
+// ---- Apple In-App Purchase -----------------------------------------------------------------
+const appleMod = await import("../server/apple");
+const DAY = 86400_000;
+const fakeTx = (o: any = {}) => ({
+  bundleId: "store.swiftscan.app",
+  productId: "store.swiftscan.app.pro.monthly",
+  originalTransactionId: "otx-1",
+  transactionId: "tx-1",
+  expiresDate: Date.now() + 30 * DAY,
+  ...o,
+});
+// "JWS" in these tests is just JSON; the fake verifier decodes it (or throws on "bad").
+appleMod.setAppleVerifierForTests({
+  async transaction(jws: string) {
+    if (jws === "bad") throw new Error("bad signature");
+    return { tx: JSON.parse(jws), environment: "Sandbox" };
+  },
+  async notification(p: string) {
+    if (p === "bad") throw new Error("bad signature");
+    return JSON.parse(p);
+  },
+  async renewal(r: string) {
+    return JSON.parse(r);
+  },
+});
+const notify = (c: Client, n: any) => c.post("/api/apple-notifications", { signedPayload: JSON.stringify(n) });
+
+test("apple iap: sign-in required, verified purchase grants Pro, one account per subscription", async () => {
+  const c = new Client();
+  assert.equal((await c.post("/api/iap/apple", { signedTransaction: JSON.stringify(fakeTx()) })).status, 401);
+  await signIn(c, "ios@example.com");
+  assert.equal((await c.post("/api/iap/apple", { signedTransaction: "bad" })).status, 400);
+  assert.equal((await c.post("/api/iap/apple", { signedTransaction: JSON.stringify(fakeTx({ productId: "other" })) })).status, 402);
+  assert.equal((await c.post("/api/iap/apple", { signedTransaction: JSON.stringify(fakeTx({ expiresDate: Date.now() - DAY })) })).status, 402);
+  const ok = await c.post("/api/iap/apple", { signedTransaction: JSON.stringify(fakeTx()) });
+  assert.equal(ok.status, 200, ok.text);
+  assert.equal(ok.json.usage.isPro, true);
+  assert.equal((await c.get("/api/config")).json.user.isPro, true);
+  // Restore on the same account is fine; another account is refused.
+  assert.equal((await c.post("/api/iap/apple", { signedTransaction: JSON.stringify(fakeTx()) })).status, 200);
+  const other = new Client();
+  await signIn(other, "someone@example.com");
+  const r = await other.post("/api/iap/apple", { signedTransaction: JSON.stringify(fakeTx()) });
+  assert.equal(r.status, 409);
+  assert.equal(r.json.code, "OTHER_ACCOUNT");
+  // Web billing portal points Apple subscribers to iPhone Settings.
+  const portal = await c.post("/api/billing-portal");
+  assert.equal(portal.status, 409);
+  assert.equal(portal.json.code, "APPLE_MANAGED");
+});
+
+test("apple notifications: renew, billing grace, refund and expiry update Pro", async () => {
+  const c = new Client();
+  await signIn(c, "renew@example.com");
+  const otx = "otx-renew";
+  assert.equal((await c.post("/api/iap/apple", { signedTransaction: JSON.stringify(fakeTx({ originalTransactionId: otx })) })).status, 200);
+  const isPro = async () => (await c.get("/api/config")).json.user.isPro;
+
+  assert.equal((await c.post("/api/apple-notifications", { signedPayload: "bad" })).status, 400);
+  const n = (type: string, tx: any, extra: any = {}) => ({ notificationType: type, ...extra, data: { signedTransactionInfo: JSON.stringify(fakeTx({ originalTransactionId: otx, ...tx })), ...(extra.data || {}) } });
+
+  assert.equal((await notify(c, n("DID_FAIL_TO_RENEW", { expiresDate: Date.now() - 1000 }))).status, 200);
+  assert.equal(await isPro(), true, "past_due keeps Pro during the grace window");
+  assert.equal((await notify(c, n("DID_RENEW", { expiresDate: Date.now() + 30 * DAY }))).status, 200);
+  assert.equal(await isPro(), true);
+  assert.equal((await notify(c, n("REFUND", { revocationDate: Date.now() }))).status, 200);
+  assert.equal(await isPro(), false);
+  // Unknown subscriptions and test pings are accepted and ignored.
+  assert.equal((await notify(c, { notificationType: "TEST" })).status, 200);
+  assert.equal((await notify(c, n("DID_RENEW", { originalTransactionId: "nobody" }))).status, 200);
+});
+
+test("apple pro lapses on its own when the verified period has ended", () => {
+  const now = Date.now();
+  assert.equal(mono.proRecordActive({ status: "active", source: "apple", periodEnd: now + DAY, updatedAt: now }, now), true);
+  assert.equal(mono.proRecordActive({ status: "active", source: "apple", periodEnd: now - 2 * DAY, updatedAt: now }, now), false);
+  assert.equal(mono.proRecordActive({ status: "active", periodEnd: now - 2 * DAY, updatedAt: now }, now), true, "Stripe records rely on webhooks");
+});
