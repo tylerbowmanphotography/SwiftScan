@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { IapProvider } from '../lib/iap';
 import { AppProvider } from '../lib/store';
 import { colors } from '../lib/theme';
 
@@ -8,6 +9,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AppProvider>
+        <IapProvider>
         <StatusBar style="light" />
         <Stack
           screenOptions={{
@@ -25,7 +27,9 @@ export default function RootLayout() {
           <Stack.Screen name="result" options={{ title: '' }} />
           <Stack.Screen name="history" options={{ title: 'Your scans' }} />
           <Stack.Screen name="account" options={{ title: 'Account', presentation: 'modal' }} />
+          <Stack.Screen name="pro" options={{ title: 'SwiftScan Pro', presentation: 'modal' }} />
         </Stack>
+        </IapProvider>
       </AppProvider>
     </SafeAreaProvider>
   );

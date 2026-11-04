@@ -59,7 +59,8 @@
           "cameraPermission": "SwiftScan uses the camera to photograph products so it can estimate what they're worth."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-iap"
     ],
     "experiments": {
       "typedRoutes": false

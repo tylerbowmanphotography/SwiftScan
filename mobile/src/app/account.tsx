@@ -5,11 +5,13 @@ import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Card, PrimaryButton, SecondaryButton } from '../components/ui';
 import * as api from '../lib/api';
+import { useIap } from '../lib/iap';
 import { useApp } from '../lib/store';
 import { colors, radius } from '../lib/theme';
 
 export default function AccountScreen() {
   const { user, usage, config, refreshConfig, signOut } = useApp();
+  const iap = useIap();
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'email' | 'code'>('email');
@@ -44,7 +46,7 @@ export default function AccountScreen() {
   const confirmDelete = () =>
     Alert.alert(
       'Delete your account?',
-      `This permanently deletes ${user?.email ?? 'your account'}, your synced scans and price alerts${user?.isPro ? ', and cancels your Pro subscription' : ''}. Scans saved on this phone stay here. This can't be undone.`,
+      `This permanently deletes ${user?.email ?? 'your account'}, your synced scans and price alerts${user?.isPro ? ', and cancels a Pro subscription bought on the website' : ''}. Scans saved on this phone stay here. This can't be undone.${user?.isPro ? '\n\nIf you subscribed on iPhone, also cancel it in Settings > your name > Subscriptions; deleting your account does not stop App Store billing.' : ''}`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -86,6 +88,11 @@ export default function AccountScreen() {
               </View>
             </View>
             {!user.isPro && usage?.remaining != null ? <Text style={styles.muted}>{usage.remaining} free scans left today.</Text> : null}
+            {user.isPro ? (
+              <SecondaryButton title="Manage subscription" onPress={iap.manage} icon={<Ionicons name="settings-outline" size={18} color={colors.textMuted} />} />
+            ) : iap.available ? (
+              <PrimaryButton title="Go Pro · unlimited scans" onPress={() => router.push('/pro')} icon={<Ionicons name="sparkles" size={18} color="#fff" />} />
+            ) : null}
             <Text style={styles.muted}>Your saved scans and price alerts sync with your account on the web.</Text>
             <SecondaryButton title="Sign out" onPress={confirmSignOut} textStyle={{ color: colors.rose }} />
             <Pressable onPress={confirmDelete} disabled={busy} style={{ alignSelf: 'center', paddingVertical: 6 }} hitSlop={8} accessibilityRole="button">

@@ -11,7 +11,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { getStore, type Store } from "./db";
 import { isAuthEnabled, readSessionEmail, upsertUser, getUser } from "./auth";
 import { clean, hmac, safeEqual, readCookie, setCookie, clientIp, hashShort, appOrigin, today, normalizeEmail } from "./util";
-import { appleTxStatus, getAppleVerifier } from "./apple";
+import { appleProProductIds, appleTxStatus, getAppleVerifier } from "./apple";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -64,6 +64,9 @@ export const isStripeEnabled = () => {
  * the Stripe webhook keep working, so they can still manage or cancel.
  */
 export const isProSalesOpen = () => isStripeEnabled() && clean(process.env.PRO_SALES).toLowerCase() === "on";
+
+/** Whether the iPhone app offers Pro through Apple In-App Purchase. On unless APPLE_IAP=off. */
+export const isAppleIapOpen = () => clean(process.env.APPLE_IAP).toLowerCase() !== "off" && isAuthEnabled();
 
 /** Accounts (sign-in + stored Pro status) are on only when both the DB and the email provider are configured. */
 export const accountsEnabled = () => isAuthEnabled();
@@ -467,6 +470,7 @@ export function registerMonetizationRoutes(app: Express) {
       },
       // comingSoon stays false: with sales off the apps show no upgrade offer at all.
       paid: { enabled: isProSalesOpen(), comingSoon: false },
+      iap: { apple: { enabled: isAppleIapOpen(), productIds: appleProProductIds() } },
       accounts: { enabled: accountsEnabled() },
       user: email ? { email, isPro: usage.isPro } : null,
       usage,
