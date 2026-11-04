@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GradientText } from '../components/GradientText';
 import { ScanRow } from '../components/ScanRow';
+import { useIap } from '../lib/iap';
 import { useApp } from '../lib/store';
 import { colors } from '../lib/theme';
 import { useRunScan } from '../lib/useRunScan';
@@ -39,6 +40,7 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const { history, usage, user, config } = useApp();
   const { run, busy } = useRunScan();
+  const iap = useIap();
   const recent = history.slice(0, 3);
 
   const usageText = usage
@@ -75,6 +77,11 @@ export default function Home() {
           <View style={styles.usagePill}>
             <View style={styles.dot} />
             <Text style={styles.usageText}>{usageText}</Text>
+            {iap.available && !usage?.isPro ? (
+              <Pressable onPress={() => router.push('/pro')} hitSlop={10} accessibilityRole="button" style={{ marginLeft: 'auto' }}>
+                <Text style={styles.goPro}>Go Pro</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
 
@@ -273,6 +280,7 @@ const styles = StyleSheet.create({
   headerBtn: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink900, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   usagePill: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, paddingHorizontal: 16, height: 46, borderRadius: 14, backgroundColor: colors.ink900, borderWidth: 1, borderColor: colors.line },
   dot: { width: 9, height: 9, borderRadius: 5, backgroundColor: colors.emerald },
+  goPro: { color: colors.pink400, fontSize: 14, fontWeight: '800', textDecorationLine: 'underline' },
   usageText: { color: colors.text, fontSize: 15, fontWeight: '600' },
   hero: { borderRadius: 32, padding: 22, overflow: 'hidden', backgroundColor: colors.ink950, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', paddingHorizontal: 13, paddingVertical: 7, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', marginBottom: 22 },

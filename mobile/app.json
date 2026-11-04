@@ -3,7 +3,7 @@
     "name": "SwiftScan",
     "slug": "swiftscan",
     "scheme": "swiftscan",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -59,7 +59,8 @@
           "cameraPermission": "SwiftScan uses the camera to photograph products so it can estimate what they're worth."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-iap"
     ],
     "experiments": {
       "typedRoutes": false

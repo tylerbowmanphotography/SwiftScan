@@ -11,6 +11,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { getStore, type Store } from "./db";
 import { isAuthEnabled, readSessionEmail, upsertUser, getUser } from "./auth";
 import { clean, hmac, safeEqual, readCookie, setCookie, clientIp, hashShort, appOrigin, today, normalizeEmail } from "./util";
+import { appleProProductIds, appleTxStatus, getAppleVerifier } from "./apple";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -64,6 +65,9 @@ export const isStripeEnabled = () => {
  */
 export const isProSalesOpen = () => isStripeEnabled() && clean(process.env.PRO_SALES).toLowerCase() === "on";
 
+/** Whether the iPhone app offers Pro through Apple In-App Purchase. On unless APPLE_IAP=off. */
+export const isAppleIapOpen = () => clean(process.env.APPLE_IAP).toLowerCase() !== "off" && isAuthEnabled();
+
 /** Accounts (sign-in + stored Pro status) are on only when both the DB and the email provider are configured. */
 export const accountsEnabled = () => isAuthEnabled();
 
@@ -83,9 +87,13 @@ async function getStripe(): Promise<any> {
 // ---------------------------------------------------------------------------
 
 export interface ProRecord {
-  status: string; // Stripe subscription status, or "canceled"
+  status: string; // Stripe subscription status, or "canceled"; Apple: "active" | "past_due" | "canceled"
+  /** Where Pro was bought. Missing on older records = Stripe. */
+  source?: "stripe" | "apple";
   customerId?: string;
+  /** Stripe subscription ID, or for Apple the original transaction ID. */
   subscriptionId?: string;
+  appleEnvironment?: string;
   periodEnd?: number; // ms
   graceUntil?: number; // ms; set when a payment fails
   updatedAt: number;
@@ -106,8 +114,13 @@ export function isUnlimitedEmail(email: string | null | undefined): boolean {
     .includes(e);
 }
 
+// Apple renewals can land a little after the old period ends; don't drop Pro in that gap.
+const APPLE_EXPIRY_SLACK_MS = 6 * 3600_000;
+
 export function proRecordActive(rec: ProRecord | null | undefined, now = Date.now()): boolean {
   if (!rec) return false;
+  // Apple: trust the period end we verified, in case a cancel/expire notification never arrives.
+  if (rec.source === "apple" && rec.status === "active" && rec.periodEnd && rec.periodEnd + APPLE_EXPIRY_SLACK_MS < now) return false;
   if (rec.status === "active" || rec.status === "trialing") return true;
   if (rec.status === "past_due") return !!rec.graceUntil && rec.graceUntil > now;
   return false;
@@ -150,6 +163,8 @@ export async function endProForDeletedAccount(email: string): Promise<void> {
     }
   }
   if (rec?.customerId) await s.del(`cust:${rec.customerId}`);
+  // Apple subscriptions can't be canceled by us (the person cancels in iPhone Settings); just unlink.
+  if (rec?.source === "apple" && rec.subscriptionId) await s.del(`appleotx:${rec.subscriptionId}`);
   await s.del(`pro:${email}`);
 }
 
@@ -404,6 +419,41 @@ export async function scanQuota(req: Request, res: Response, next: NextFunction)
 // Routes
 // ---------------------------------------------------------------------------
 
+export const APPLE_MANAGE_SUBSCRIPTIONS_URL = "https://apps.apple.com/account/subscriptions";
+
+function maskEmail(e: string): string {
+  const [u, d] = e.split("@");
+  return `${u.slice(0, 2)}***@${d}`;
+}
+
+/** Update Pro from a verified App Store Server Notification. Returns a short log line. */
+export async function applyAppleNotification(n: any): Promise<string> {
+  const type: string = n?.notificationType || "";
+  const subtype: string = n?.subtype || "";
+  if (type === "TEST") return "test notification";
+  const signedTx = n?.data?.signedTransactionInfo;
+  if (!signedTx) return "no transaction";
+  const { tx } = await getAppleVerifier().transaction(signedTx);
+  const otx = String(tx.originalTransactionId || tx.transactionId || "");
+  const store = getStore();
+  const email = otx && store ? await store.get<string>(`appleotx:${otx}`) : null;
+  if (!email) return `no account linked to ${otx || "?"}`;
+  const st = appleTxStatus(tx);
+  let status: string;
+  if (["REFUND", "REVOKE", "EXPIRED", "GRACE_PERIOD_EXPIRED"].includes(type) || tx.revocationDate) status = "canceled";
+  else if (type === "DID_FAIL_TO_RENEW") status = subtype === "GRACE_PERIOD" ? "active" : "past_due";
+  else status = st.active ? "active" : "canceled";
+  let periodEnd = st.periodEnd;
+  if (type === "DID_FAIL_TO_RENEW" && subtype === "GRACE_PERIOD" && n?.data?.signedRenewalInfo) {
+    try {
+      const renewal = await getAppleVerifier().renewal(n.data.signedRenewalInfo);
+      if (renewal?.gracePeriodExpiresDate) periodEnd = renewal.gracePeriodExpiresDate;
+    } catch {}
+  }
+  await putProRecord(email, { status, source: "apple", subscriptionId: otx, periodEnd });
+  return `${email}: ${status}`;
+}
+
 export function registerMonetizationRoutes(app: Express) {
   // Public (non-secret) config for the UI: affiliate IDs are visible in links anyway.
   app.get(["/api/config", "/api/config/"], async (req, res) => {
@@ -420,6 +470,7 @@ export function registerMonetizationRoutes(app: Express) {
       },
       // comingSoon stays false: with sales off the apps show no upgrade offer at all.
       paid: { enabled: isProSalesOpen(), comingSoon: false },
+      iap: { apple: { enabled: isAppleIapOpen(), productIds: appleProProductIds() } },
       accounts: { enabled: accountsEnabled() },
       user: email ? { email, isPro: usage.isPro } : null,
       usage,
@@ -511,6 +562,14 @@ export function registerMonetizationRoutes(app: Express) {
     if (!email) return res.status(401).json({ success: false, code: "SIGN_IN_REQUIRED", error: "Sign in first." });
     try {
       const pro = await getProRecord(email);
+      if (pro?.source === "apple" && proRecordActive(pro)) {
+        return res.status(409).json({
+          success: false,
+          code: "APPLE_MANAGED",
+          url: APPLE_MANAGE_SUBSCRIPTIONS_URL,
+          error: "Your Pro subscription was bought on iPhone. Manage or cancel it in iPhone Settings > your name > Subscriptions.",
+        });
+      }
       const user = await getUser(email);
       const customer = pro?.customerId || user?.stripeCustomerId;
       if (!customer) return res.status(404).json({ success: false, error: "No subscription found for this account." });
@@ -520,6 +579,70 @@ export function registerMonetizationRoutes(app: Express) {
     } catch (err: any) {
       console.warn("Billing portal error:", err?.message || err);
       return res.status(502).json({ success: false, error: "Couldn't open the billing portal right now. Please try again later." });
+    }
+  });
+
+  // ---- Apple In-App Purchase (iPhone app) ----------------------------------------------------
+
+  // The app sends StoreKit's signed transaction after a purchase or "Restore purchases".
+  app.post(["/api/iap/apple", "/api/iap/apple/"], async (req, res) => {
+    if (!accountsEnabled()) return res.status(503).json({ success: false, error: "Accounts aren't available right now." });
+    const email = readSessionEmail(req);
+    if (!email) return res.status(401).json({ success: false, code: "SIGN_IN_REQUIRED", error: "Sign in with your email first so Pro follows you to any device." });
+    const jws = typeof req.body?.signedTransaction === "string" ? req.body.signedTransaction.trim() : "";
+    if (!jws || jws.length > 20000) return res.status(400).json({ success: false, error: "Missing purchase data." });
+    let verified;
+    try {
+      verified = await getAppleVerifier().transaction(jws);
+    } catch (err: any) {
+      console.warn("Apple transaction verification failed:", err?.message || err);
+      return res.status(400).json({ success: false, code: "INVALID_RECEIPT", error: "We couldn't verify this purchase with Apple." });
+    }
+    const { tx, environment } = verified;
+    const status = appleTxStatus(tx);
+    const otx = String(tx.originalTransactionId || tx.transactionId || "");
+    if (!otx) return res.status(400).json({ success: false, code: "INVALID_RECEIPT", error: "We couldn't verify this purchase with Apple." });
+    if (!status.active) {
+      return res.status(402).json({ success: false, code: "NOT_ACTIVE", error: status.reason === "expired" ? "This subscription has ended." : "This purchase doesn't include an active Pro subscription." });
+    }
+    const store = getStore();
+    if (!store) return res.status(503).json({ success: false, error: "Database not configured." });
+    try {
+      // One Apple subscription unlocks one SwiftScan account.
+      const owner = await store.get<string>(`appleotx:${otx}`);
+      if (owner && owner !== email) {
+        return res.status(409).json({ success: false, code: "OTHER_ACCOUNT", error: `This App Store subscription is already linked to another SwiftScan account (${maskEmail(owner)}). Sign in with that email to use Pro.` });
+      }
+      await store.set(`appleotx:${otx}`, email);
+      await putProRecord(email, { status: "active", source: "apple", subscriptionId: otx, periodEnd: status.periodEnd, appleEnvironment: environment });
+      return res.json({ success: true, usage: { ...(await getUsage(req, res)), isPro: true, exhausted: false, remaining: null } });
+    } catch (err: any) {
+      console.warn("Apple purchase save failed:", err?.message || err);
+      return res.status(502).json({ success: false, error: "Couldn't save your purchase. Please tap Restore purchases." });
+    }
+  });
+
+  // App Store Server Notifications V2 (renewals, billing problems, refunds, expirations).
+  // Set this URL in App Store Connect > App Information > App Store Server Notifications.
+  app.post(["/api/apple-notifications", "/api/apple-notifications/"], async (req, res) => {
+    const signedPayload = typeof req.body?.signedPayload === "string" ? req.body.signedPayload : "";
+    if (!signedPayload) return res.status(400).json({ received: false });
+    let n;
+    try {
+      n = await getAppleVerifier().notification(signedPayload);
+    } catch (err: any) {
+      console.warn("Apple notification verification failed:", err?.message || err);
+      return res.status(400).json({ received: false });
+    }
+    const store = getStore();
+    if (!store) return res.status(503).json({ received: false });
+    try {
+      const result = await applyAppleNotification(n);
+      console.log(`Apple notification ${n.notificationType}${n.subtype ? "/" + n.subtype : ""}: ${result}`);
+      return res.json({ received: true });
+    } catch (err: any) {
+      console.warn("Apple notification processing error:", err?.message || err);
+      return res.status(500).json({ received: false }); // Apple retries
     }
   });
 

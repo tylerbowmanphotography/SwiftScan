@@ -25,6 +25,8 @@ export interface AccountUser {
 export interface AppConfig {
   affiliate: AffiliateConfig;
   paid: { enabled: boolean; comingSoon: boolean };
+  /** Apple In-App Purchase for Pro (server can switch it off without an app update). */
+  iap?: { apple?: { enabled: boolean; productIds: string[] } };
   accounts?: { enabled: boolean };
   user?: AccountUser | null;
   usage: Usage;
@@ -180,6 +182,26 @@ export async function verifyCode(email: string, code: string) {
 
 export async function logout() {
   await post('/api/auth/logout', {});
+}
+
+// ---- Pro via Apple In-App Purchase --------------------------------------------------------
+
+export type AppleVerifyResult =
+  | { ok: true; usage?: Usage }
+  | { ok: false; code?: string; error: string; retryable: boolean };
+
+/** Send StoreKit's signed transaction to the server, which checks it with Apple and unlocks Pro. */
+export async function verifyApplePurchase(signedTransaction: string): Promise<AppleVerifyResult> {
+  const r = await post('/api/iap/apple', { signedTransaction }, 30000);
+  if (r.ok && r.data?.success) return { ok: true, usage: r.data.usage };
+  const code: string | undefined = r.data?.code;
+  return {
+    ok: false,
+    code,
+    error: r.data?.error || "Couldn't confirm your purchase. Tap Restore purchases to try again.",
+    // Server/network trouble: keep the transaction unfinished so StoreKit delivers it again.
+    retryable: r.status === 0 || r.status >= 500,
+  };
 }
 
 // ---- saved items + price alerts (signed in) ----------------------------------------------

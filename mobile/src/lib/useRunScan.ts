@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import * as api from './api';
 import { useApp } from './store';
 import type { SavedScanItem } from './types';
@@ -42,11 +42,20 @@ export function useRunScan() {
         } else if (out.kind === 'limit') {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
           const canSignIn = !!config?.accounts?.enabled && !config?.user;
-          Alert.alert(
-            "You've used today's free scans",
-            out.message + (canSignIn ? '\n\nAlready have SwiftScan Pro? Sign in with the same email to keep scanning.' : ''),
-            canSignIn ? [{ text: 'Not now', style: 'cancel' }, { text: 'Sign in', onPress: () => router.push('/account') }] : [{ text: 'OK' }],
-          );
+          const canBuy = Platform.OS === 'ios' && !!config?.iap?.apple?.enabled;
+          if (canBuy) {
+            Alert.alert(
+              "You've used today's free scans",
+              `You get ${out.usage?.limit ?? 5} free scans a day. Go Pro for unlimited scans, or come back tomorrow.`,
+              [{ text: 'Not now', style: 'cancel' }, { text: 'See Pro', onPress: () => router.push('/pro') }],
+            );
+          } else {
+            Alert.alert(
+              "You've used today's free scans",
+              out.message + (canSignIn ? '\n\nAlready have SwiftScan Pro? Sign in with the same email to keep scanning.' : ''),
+              canSignIn ? [{ text: 'Not now', style: 'cancel' }, { text: 'Sign in', onPress: () => router.push('/account') }] : [{ text: 'OK' }],
+            );
+          }
         } else {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
           Alert.alert(out.code === 'BARCODE_MISREAD' ? 'Barcode misread' : 'Scan failed', out.message);
