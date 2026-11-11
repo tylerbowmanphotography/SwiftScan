@@ -12,6 +12,26 @@ export interface Usage {
 export interface AccountUser {
   email: string;
   isPro: boolean;
+  /** Owner account: can see usage stats. */
+  isAdmin?: boolean;
+}
+
+export interface DayStats {
+  day: string;
+  web: { visitors: number; scanners: number; scans: number };
+  ios: { visitors: number; scanners: number; scans: number };
+  purchases: { apple: number; stripe: number };
+}
+
+export async function fetchUsageStats(days = 30): Promise<DayStats[] | null> {
+  try {
+    const res = await fetch(`/api/admin/stats?days=${days}`, { credentials: 'same-origin' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data.days) ? data.days : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface AppConfig {

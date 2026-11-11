@@ -12,6 +12,7 @@ import { getStore, type Store } from "./db";
 import { isAuthEnabled, readSessionEmail, upsertUser, getUser } from "./auth";
 import { clean, hmac, safeEqual, readCookie, setCookie, clientIp, hashShort, appOrigin, today, normalizeEmail } from "./util";
 import { appleProProductIds, appleTxStatus, getAppleVerifier } from "./apple";
+import { isAdminEmail, readStats, recordOpen, recordPurchaseStat, recordScanStat } from "./stats";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -204,6 +205,7 @@ export async function applyStripeEvent(event: any): Promise<string> {
       if (!email) return "no email for session";
       if (!paid) return "session not paid yet";
       await putProRecord(email, { status: "active", customerId, subscriptionId: idOf(obj.subscription) });
+      recordPurchaseStat("stripe");
       return `pro on: ${email}`;
     }
     case "customer.subscription.created":
@@ -402,7 +404,9 @@ export async function scanQuota(req: Request, res: Response, next: NextFunction)
   (res as any).json = (body: any) => {
     if (done) return originalJson(body);
     done = true;
-    const counts = body && typeof body === "object" && res.statusCode === 200 && body.success === true && !before.isPro;
+    const ok = body && typeof body === "object" && res.statusCode === 200 && body.success === true;
+    if (ok) recordScanStat(req);
+    const counts = ok && !before.isPro;
     if (counts) {
       recordScan(req, res, before)
         .then((usage) => originalJson({ ...body, usage }))
@@ -459,6 +463,7 @@ export function registerMonetizationRoutes(app: Express) {
   app.get(["/api/config", "/api/config/"], async (req, res) => {
     const a = getAffiliateConfig();
     const detail = await getUsageDetail(req, res);
+    recordOpen(req);
     const { email, source: _s, ...usage } = detail;
     res.json({
       affiliate: {
@@ -472,7 +477,7 @@ export function registerMonetizationRoutes(app: Express) {
       paid: { enabled: isProSalesOpen(), comingSoon: false },
       iap: { apple: { enabled: isAppleIapOpen(), productIds: appleProProductIds() } },
       accounts: { enabled: accountsEnabled() },
-      user: email ? { email, isPro: usage.isPro } : null,
+      user: email ? { email, isPro: usage.isPro, ...(isAdminEmail(email) ? { isAdmin: true } : {}) } : null,
       usage,
     });
   });
@@ -582,6 +587,14 @@ export function registerMonetizationRoutes(app: Express) {
     }
   });
 
+  // Usage stats for the owner (ADMIN_EMAILS). ?days=1..90
+  app.get(["/api/admin/stats", "/api/admin/stats/"], async (req, res) => {
+    const email = readSessionEmail(req);
+    if (!isAdminEmail(email)) return res.status(email ? 403 : 401).json({ success: false, error: "Not allowed." });
+    const days = Math.min(90, Math.max(1, Number(req.query.days) || 30));
+    res.json({ success: true, days: await readStats(days) });
+  });
+
   // ---- Apple In-App Purchase (iPhone app) ----------------------------------------------------
 
   // The app sends StoreKit's signed transaction after a purchase or "Restore purchases".
@@ -613,6 +626,7 @@ export function registerMonetizationRoutes(app: Express) {
       if (owner && owner !== email) {
         return res.status(409).json({ success: false, code: "OTHER_ACCOUNT", error: `This App Store subscription is already linked to another SwiftScan account (${maskEmail(owner)}). Sign in with that email to use Pro.` });
       }
+      if (!owner) recordPurchaseStat("apple");
       await store.set(`appleotx:${otx}`, email);
       await putProRecord(email, { status: "active", source: "apple", subscriptionId: otx, periodEnd: status.periodEnd, appleEnvironment: environment });
       return res.json({ success: true, usage: { ...(await getUsage(req, res)), isPro: true, exhausted: false, remaining: null } });
