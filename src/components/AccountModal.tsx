@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Loader2, Mail, Sparkles } from 'lucide-react';
+import { UsageStats } from './UsageStats';
 import { AccountUser, requestSignInCode, verifySignInCode, signOut, openBillingPortal, startCheckout } from '../utils/api';
 
 interface Props {
@@ -108,6 +109,7 @@ export function AccountModal({ open, user, paidEnabled, reason, onClose, onAuthC
             <button type="button" onClick={logout} disabled={busy} className="w-full text-xs font-bold text-slate-600 dark:text-slate-400 underline">
               Sign out
             </button>
+            {user.isAdmin ? <UsageStats /> : null}
           </>
         ) : (
           <>

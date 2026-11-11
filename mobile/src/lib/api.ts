@@ -62,7 +62,7 @@ async function request(path: string, init: RequestInit = {}, timeoutMs = 30000):
     const res = await fetch(API_BASE + path, {
       credentials: 'include',
       ...init,
-      headers: { Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...(init.headers || {}) },
+      headers: { Accept: 'application/json', 'X-SwiftScan-Client': 'ios', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...(init.headers || {}) },
       signal: controller.signal,
     });
     const data: Json = await res.json().catch(() => ({}));

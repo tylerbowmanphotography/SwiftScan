@@ -555,3 +555,35 @@ test("apple pro lapses on its own when the verified period has ended", () => {
   assert.equal(mono.proRecordActive({ status: "active", source: "apple", periodEnd: now - 2 * DAY, updatedAt: now }, now), false);
   assert.equal(mono.proRecordActive({ status: "active", periodEnd: now - 2 * DAY, updatedAt: now }, now), true, "Stripe records rely on webhooks");
 });
+
+// ---- usage stats ---------------------------------------------------------------------------
+test("usage stats: counts opens and scans per platform; owner-only endpoint", async () => {
+  process.env.ADMIN_EMAILS = "owner@example.com";
+  const statsMod = await import("../server/stats");
+  const fakeReq = (h: Record<string, string>) => ({ headers: h }) as any;
+  assert.equal(statsMod.platformOf(fakeReq({ "x-swiftscan-client": "ios" })), "ios");
+  assert.equal(statsMod.platformOf(fakeReq({ "user-agent": "SwiftScan/12 CFNetwork/3826 Darwin/25.0.0" })), "ios");
+  assert.equal(statsMod.platformOf(fakeReq({ "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)" })), "web");
+
+  const visitor = new Client();
+  await visitor.get("/api/config"); // sets the device cookie
+  await visitor.get("/api/config"); // counted once per device per day
+  const other = new Client();
+  await other.get("/api/config");
+
+  const anon = new Client();
+  assert.equal((await anon.get("/api/admin/stats")).status, 401);
+  const notOwner = new Client();
+  await signIn(notOwner, "someone-else@example.com");
+  assert.equal((await notOwner.get("/api/admin/stats")).status, 403);
+
+  const owner = new Client();
+  await signIn(owner, "owner@example.com");
+  const cfg = await owner.get("/api/config");
+  assert.equal(cfg.json.user.isAdmin, true);
+  await new Promise((r) => setTimeout(r, 50)); // stats writes are fire-and-forget
+  const r = await owner.get("/api/admin/stats?days=3");
+  assert.equal(r.status, 200, r.text);
+  assert.equal(r.json.days.length, 3);
+  assert.ok(r.json.days[0].web.visitors >= 3, JSON.stringify(r.json.days[0]));
+});

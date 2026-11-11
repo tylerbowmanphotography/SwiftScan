@@ -60,10 +60,10 @@ export function appOrigin(req: Request): string {
   return `${proto}://${req.headers["x-forwarded-host"] || req.headers.host}`;
 }
 
-export function today(): string {
+export function today(at: Date = new Date()): string {
   const tz = clean(process.env.QUOTA_TIMEZONE) || "America/Chicago";
   try {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
   } catch {
     return new Date().toISOString().slice(0, 10);
   }
