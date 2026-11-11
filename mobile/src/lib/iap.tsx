@@ -171,7 +171,9 @@ function IapEngine({ productId, children }: { productId: string; children: React
   }, []);
 
   const value = useMemo<IapState>(
-    () => ({ available: true, product, loadingProduct, busy, buy, restore, manage }),
+    // Offer Pro only once the App Store actually returns the subscription (e.g. it isn't sold
+    // until Apple approves it), so nobody sees a Subscribe button that can't work.
+    () => ({ available: !!product, product, loadingProduct, busy, buy, restore, manage }),
     [product, loadingProduct, busy, buy, restore, manage],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
