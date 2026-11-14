@@ -67,6 +67,8 @@ const SCAN_CACHE_SECONDS = 3 * 86400;
 // attempt still uses up free requests. Only turn it on (GEMINI_SEARCH=1) once the key has billing.
 const SEARCH_GROUNDING = process.env.GEMINI_SEARCH === "1";
 const AI_PER_MODEL_MS = 25_000;
+// Default model thinking level for every AI call (AI_THINKING=off to use each model's default).
+const AI_THINKING = ((v) => (v === "off" ? "" : v || "low"))(String(process.env.AI_THINKING || "").trim().toLowerCase());
 
 // Try each model in turn; throws the last error if every model fails or time runs out.
 async function generateWithFallback(
@@ -93,7 +95,19 @@ async function generateWithFallbackRaw(
     }
     try {
       const abortSignal = AbortSignal.timeout(Math.min(perModelMs, left));
-      const response = await ai.models.generateContent({ model, ...params, config: { ...(params.config || {}), abortSignal } });
+      // Less "thinking" by default: these are lookups, not puzzles, and full thinking made each
+      // scan take 15-20s. A call can still ask for more with its own thinkingConfig.
+      const baseConfig = { ...(params.config || {}), abortSignal };
+      const config = baseConfig.thinkingConfig || !AI_THINKING ? baseConfig : { ...baseConfig, thinkingConfig: { thinkingLevel: AI_THINKING } };
+      let response: any;
+      try {
+        response = await ai.models.generateContent({ model, ...params, config });
+      } catch (err: any) {
+        // A model that doesn't accept a thinking level is retried once without it.
+        if (config !== baseConfig && /thinking/i.test(String(err?.message || err)) && !abortSignal.aborted) {
+          response = await ai.models.generateContent({ model, ...params, config: baseConfig });
+        } else throw err;
+      }
       const text = response.text || "";
       if (text) return { text, response };
       lastErr = new Error(`Model ${model} returned an empty response`);
@@ -296,27 +310,33 @@ interface BarcodeLookupOutcome {
 const MEMORY_SOURCE = "SwiftScan users";
 const barcodeMemoryKey = (code: string) => `upcmem:${code}`;
 
+// Database and web-search hits are remembered too (keeping their original source), so a barcode
+// found once answers instantly afterwards, even when a rate-limited database (UPCitemdb) is out.
 async function recallBarcode(variants: string[]): Promise<BarcodeProduct | null> {
   const store = getStore();
   if (!store) return null;
-  for (const v of variants.slice(0, 3)) {
-    try {
-      const hit = await store.get<BarcodeProduct>(barcodeMemoryKey(v));
-      if (hit?.name) return { ...hit, source: MEMORY_SOURCE };
-    } catch (err: any) {
-      console.warn("Barcode memory read failed:", err?.message || err);
-      return null;
-    }
+  try {
+    const hits = await Promise.all(variants.slice(0, 3).map((v) => store.get<BarcodeProduct>(barcodeMemoryKey(v))));
+    const hit = hits.find((h) => h?.name);
+    return hit ? { ...hit, source: hit.source || MEMORY_SOURCE } : null;
+  } catch (err: any) {
+    console.warn("Barcode memory read failed:", err?.message || err);
+    return null;
   }
-  return null;
 }
 
-async function rememberBarcode(code: string, product: { productName?: string; brand?: string; category?: string }) {
+async function rememberBarcode(
+  code: string,
+  product: { productName?: string; name?: string; brand?: string; category?: string; imageUrl?: string },
+  source: string = MEMORY_SOURCE,
+) {
   const store = getStore();
-  const name = String(product.productName || "").trim();
+  const name = String(product.productName || product.name || "").trim();
   if (!store || name.length < 3) return;
+  const rec: BarcodeProduct = { name, brand: product.brand, category: product.category, source };
+  if (product.imageUrl) rec.imageUrl = product.imageUrl;
   await store
-    .set(barcodeMemoryKey(code), { name, brand: product.brand, category: product.category, source: MEMORY_SOURCE }, { ex: 365 * 86400 })
+    .set(barcodeMemoryKey(code), rec, { ex: 365 * 86400 })
     .catch((err: any) => console.warn("Barcode memory write failed:", err?.message || err));
 }
 
@@ -348,21 +368,17 @@ async function lookupBarcode(variants: string[]): Promise<BarcodeLookupOutcome> 
     return null;
   };
 
-  // The four Open*Facts databases are queried in parallel (to keep latency down) but the
-  // result is chosen in priority order: Food, Beauty, Products, Pet Food.
-  // Barcodes SwiftScan users have already identified (see rememberBarcode) answer first, for free.
+  // Barcodes already identified (see rememberBarcode) answer first, for free.
   const remembered = await recallBarcode(variants);
   if (remembered) return { product: remembered, incomplete: false, errors };
 
-  const openFacts = await Promise.all(sources.slice(0, 4).map(runSource));
-  const openHit = openFacts.find((h) => !!h);
-  if (openHit) return { product: openHit, incomplete: errors.length > 0, errors };
-
-  for (const source of sources.slice(4)) {
-    const hit = await runSource(source);
-    if (hit) return { product: hit, incomplete: errors.length > 0, errors };
-  }
-  return { product: null, incomplete: errors.length > 0, errors };
+  // The free open databases are queried at once (the slowest one sets the wait, about a second,
+  // instead of adding them up) and picked in priority order: Food, Beauty, Products, Pet Food,
+  // Open Library. UPCitemdb only allows ~100 lookups a day, so it is saved for the misses.
+  const hits = await Promise.all(sources.slice(0, 5).map(runSource));
+  const hit = hits.find((h) => !!h) || (await runSource(sources[5])) || null;
+  if (hit) await rememberBarcode(variants[0], hit, hit.source);
+  return { product: hit, incomplete: errors.length > 0, errors };
 }
 
 // Last resort for barcodes missing from the open databases: ask Gemini to find the code on the
@@ -371,13 +387,15 @@ async function lookupBarcode(variants: string[]): Promise<BarcodeLookupOutcome> 
 const WEB_LOOKUP_SOURCE = "Web search";
 async function identifyBarcodeOnWeb(code: string, deadline: number): Promise<BarcodeProduct | null> {
   if (!resolveGeminiKey().key || !SEARCH_GROUNDING) return null;
-  const prompt = `Search the web for the retail product barcode (UPC/EAN/GTIN) ${code}.
-Only answer with a product if you find a page (retailer, manufacturer or barcode database) that lists exactly this number ${code} for that product.
+  const alt = code.length === 12 ? "0" + code : code.length === 13 && code.startsWith("0") ? code.slice(1) : "";
+  const prompt = `Search the web for the retail product barcode (UPC/EAN/GTIN) ${code}${alt ? ` (also written ${alt})` : ""}.
+Try searches like "${code}", "UPC ${code}"${alt ? ` and "${alt}"` : ""}; barcode sites (upcitemdb, barcodelookup, go-upc, ean-search) and retailers (Walmart, Target, Amazon, Home Depot) often list it.
+Only answer with a product if you find a page (retailer, manufacturer or barcode database) that lists exactly this number (${code}${alt ? ` or ${alt}` : ""}) for that product.
 Reply with ONLY this JSON, no other text:
 {"found": true or false, "name": "full product name with size/variant", "brand": "brand", "category": "short category", "evidence": "domain of the page that lists ${code}"}
 If you cannot find this exact number, reply {"found": false}.`;
   try {
-    const text = await generateWithFallback({ contents: prompt, config: { tools: [{ googleSearch: {} }] } }, { deadline, perModelMs: 15_000 });
+    const text = await generateWithFallback({ contents: prompt, config: { tools: [{ googleSearch: {} }] } }, { deadline, perModelMs: 18_000 });
     const j = extractAndParseJSON(text);
     const name = typeof j?.name === "string" ? j.name.trim() : "";
     if (j?.found !== true || name.length < 3 || !j?.evidence) return null;
@@ -617,10 +635,18 @@ app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {
     // ---- 2. REAL database lookup BEFORE any AI is involved --------------------------------
     const outcome = await lookupBarcode(norm.variants);
     if (!outcome.product) {
-      const web = await identifyBarcodeOnWeb(norm.code, startedAt + 22_000);
+      // A barcode nobody could find in the last few hours is answered at once instead of
+      // re-running the slow web search.
+      const missKey = `upcmiss:${norm.code}`;
+      const store = getStore();
+      const recentMiss = store ? await store.get<number>(missKey).catch(() => null) : null;
+      const web = recentMiss ? null : await identifyBarcodeOnWeb(norm.code, startedAt + 24_000);
       if (web) {
         outcome.product = web;
+        await rememberBarcode(norm.code, web, WEB_LOOKUP_SOURCE);
         console.log(`Barcode ${norm.code} not in databases; matched by web search: ${web.name}`);
+      } else if (store && !recentMiss && !outcome.incomplete) {
+        await store.set(missKey, 1, { ex: 6 * 3600 }).catch(() => {});
       }
     }
     if (!outcome.product) {
