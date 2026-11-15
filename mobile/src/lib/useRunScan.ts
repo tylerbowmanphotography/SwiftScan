@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import * as api from './api';
+import { donateToSiri } from './siri';
 import { useApp } from './store';
 import type { SavedScanItem } from './types';
 
@@ -25,6 +26,8 @@ export function useRunScan() {
         if (out.kind === 'found') {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
           const item = addScan(out.data, scanType, opts.thumbnailUrl);
+          // Teach Siri what this person checks, so it can suggest it (and Siri AI can learn from it).
+          if ('textQuery' in input && !('correctionHint' in input) && input.textQuery) donateToSiri('checkPrice', input.textQuery);
           const go = opts.replace === false ? router.push : router.replace;
           go({ pathname: '/result', params: { id: item.id } });
         } else if (out.kind === 'notFound') {
