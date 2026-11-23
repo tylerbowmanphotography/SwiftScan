@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card, Pill, PrimaryButton, SecondaryButton, SectionTitle } from '../components/ui';
-import { getAffiliateConfig, getAffiliateUrl, hasAffiliateIds, isAmazonLink } from '../lib/affiliate';
+import { getAffiliateConfig, getAffiliateUrl, hasAffiliateIds } from '../lib/affiliate';
 import * as api from '../lib/api';
 import { useApp } from '../lib/store';
 import { colors, money, radius, ratingStyle } from '../lib/theme';
