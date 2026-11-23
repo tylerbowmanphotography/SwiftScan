@@ -45,6 +45,7 @@ export interface UnidentifiedBarcode {
 }
 
 export interface ProductScanResult {
+  priceHistory?: { checks: number; since?: number; low?: number; high?: number };
   productName: string;
   brand: string;
   category: string;

@@ -224,6 +224,14 @@ function PriceHistory({ r }: { r: ProductScanResult }) {
         </View>
       </View>
       <Text style={[styles.disclaimer, { textAlign: 'left', marginTop: 10 }]}>The white marker is the good price to aim for.</Text>
+      {r.priceHistory && r.priceHistory.checks >= 2 && r.priceHistory.low && r.priceHistory.high ? (
+        <Text style={[styles.disclaimer, { textAlign: 'left', marginTop: 8 }]}>
+          SwiftScan has price-checked this {r.priceHistory.checks} times
+          {r.priceHistory.since ? ` since ${new Date(r.priceHistory.since).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}. Its fair
+          price ranged {money(r.priceHistory.low)}
+          {r.priceHistory.high > r.priceHistory.low ? `–${money(r.priceHistory.high)}` : ''}. These are SwiftScan estimates, not store prices.
+        </Text>
+      ) : null}
     </Card>
   );
 }
