@@ -340,6 +340,37 @@ async function rememberBarcode(
     .catch((err: any) => console.warn("Barcode memory write failed:", err?.message || err));
 }
 
+
+// ---- Price history --------------------------------------------------------------------------
+// Every price check leaves a small record (the fair and deal prices SwiftScan found that day), so
+// results can show "lowest seen" over time. These are SwiftScan's own estimates, not shelf prices.
+const PRICE_HISTORY_MAX = 60;
+type PricePoint = { t: number; good: number; great: number; msrp: number };
+const priceHistoryKey = (productKey: string) => `phist:v1:${productKey}`;
+
+async function recordPriceHistory(productKey: string, r: { goodPrice?: number; greatDealPrice?: number; msrp?: number }) {
+  const store = getStore();
+  const good = Number(r.goodPrice) || 0;
+  if (!store || good <= 0) return null;
+  try {
+    const key = priceHistoryKey(productKey);
+    const points = ((await store.get<PricePoint[]>(key)) || []).filter((p) => p && p.good > 0);
+    const last = points[points.length - 1];
+    const now = Date.now();
+    // One point per 12 hours, and only when the price moved or a week has passed.
+    if (!last || (now - last.t > 12 * 3600_000 && (last.good !== good || now - last.t > 7 * 86400_000))) {
+      points.push({ t: now, good, great: Number(r.greatDealPrice) || 0, msrp: Number(r.msrp) || 0 });
+      await store.set(key, points.slice(-PRICE_HISTORY_MAX), { ex: 400 * 86400 });
+    }
+    if (points.length < 2) return { checks: points.length };
+    const goods = points.map((p) => p.good);
+    return { checks: points.length, since: points[0].t, low: Math.min(...goods), high: Math.max(...goods) };
+  } catch (err: any) {
+    console.warn("Price history failed:", err?.message || err);
+    return null;
+  }
+}
+
 async function lookupBarcode(variants: string[]): Promise<BarcodeLookupOutcome> {
   const errors: string[] = [];
   const sources: { label: string; run: (code: string) => Promise<BarcodeProduct | null> }[] = [
@@ -730,12 +761,14 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
     ? `scancache:v1:${normalizedCode ? "b:" + normalizedCode : "q:" + hashShort(String(textQuery || "").trim().toLowerCase(), 32)}`
     : null;
   const cache = cacheKey ? getStore() : null;
+  const historyKey = cacheKey ? cacheKey.replace(/^scancache:v1:/, "") : null;
   if (cache && cacheKey) {
     try {
       const hit = await cache.get<any>(cacheKey);
       if (hit?.productName) {
         if (linkCode?.ok) await rememberBarcode(linkCode.code, hit);
-        return res.json({ success: true, found: true, data: hit, cached: true });
+        const history = historyKey ? await recordPriceHistory(historyKey, hit) : null;
+        return res.json({ success: true, found: true, data: hit, cached: true, ...(history ? { history } : {}) });
       }
     } catch (err: any) {
       console.warn("Scan cache read failed:", err?.message || err);
@@ -793,7 +826,8 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
           await cache.set(cacheKey, normalized, { ex: SCAN_CACHE_SECONDS }).catch((err: any) => console.warn("Scan cache write failed:", err?.message || err));
         }
         if (linkCode?.ok) await rememberBarcode(linkCode.code, normalized);
-        return res.json({ success: true, found: true, data: normalized });
+        const history = historyKey ? await recordPriceHistory(historyKey, normalized) : null;
+        return res.json({ success: true, found: true, data: normalized, ...(history ? { history } : {}) });
       } catch (jsonErr) {
         console.warn("JSON parse error:", jsonErr);
         aiError = aiError || "The AI returned a response that could not be read.";
