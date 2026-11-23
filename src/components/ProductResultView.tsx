@@ -956,9 +956,21 @@ Summary: ${result.summary}`;
             ))}
           </div>
 
+          {getAffiliateConfig().amazonTag && (
+            <a
+              href={getAffiliateUrl(`https://www.amazon.com/s?k=${encodeURIComponent(result.productName)}`)}
+              target="_blank"
+              rel="noopener noreferrer sponsored"
+              className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs shadow-sm hover:opacity-90 transition-opacity"
+            >
+              <span>See it on Amazon</span>
+              <ExternalLink size={13} />
+            </a>
+          )}
+
           {hasAffiliateIds() && (
             <p className="mt-3 text-[10px] text-slate-500 dark:text-slate-400 leading-snug">
-              {getAffiliateConfig().amazonTag && result.priceComparison.some((i) => isAmazonLink(i.url))
+              {getAffiliateConfig().amazonTag
                 ? 'As an Amazon Associate I earn from qualifying purchases. '
                 : ''}
               Links above may be affiliate links; we may earn a commission at no extra cost to you.

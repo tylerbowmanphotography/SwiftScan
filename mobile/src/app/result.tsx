@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card, Pill, PrimaryButton, SecondaryButton, SectionTitle } from '../components/ui';
-import { getAffiliateConfig, getAffiliateUrl, hasAffiliateIds, isAmazonLink } from '../lib/affiliate';
+import { getAffiliateConfig, getAffiliateUrl, hasAffiliateIds } from '../lib/affiliate';
 import * as api from '../lib/api';
 import { useApp } from '../lib/store';
 import { colors, money, radius, ratingStyle } from '../lib/theme';
@@ -178,9 +178,17 @@ function PriceComparison({ r }: { r: ProductScanResult }) {
           <Ionicons name="open-outline" size={18} color={colors.textMuted} />
         </Pressable>
       ))}
+      {getAffiliateConfig().amazonTag ? (
+        <View style={{ marginTop: 12 }}>
+          <SecondaryButton
+            title="See it on Amazon"
+            onPress={() => open(`https://www.amazon.com/s?k=${encodeURIComponent(r.productName)}`, 'Amazon')}
+          />
+        </View>
+      ) : null}
       {hasAffiliateIds() ? (
         <Text style={[styles.disclaimer, { marginTop: 12, textAlign: 'left' }]}>
-          {getAffiliateConfig().amazonTag && rows.some((p) => isAmazonLink(p.url)) ? 'As an Amazon Associate I earn from qualifying purchases. ' : ''}
+          {getAffiliateConfig().amazonTag ? 'As an Amazon Associate I earn from qualifying purchases. ' : ''}
           Links may be affiliate links; we may earn a commission at no extra cost to you.
         </Text>
       ) : null}
