@@ -1,7 +1,18 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { BadgeCheck, TriangleAlert } from 'lucide-react';
 import { ProductScanResult } from '../types';
 import { checkSale, SaleVerdict } from '../utils/saleCheck';
+import { parseEntries, recordEntry, summarize, SaleEntry } from '../utils/savings';
+
+const STORE_KEY = 'ss_sale_checks';
+const readEntries = (): SaleEntry[] => {
+  try {
+    return parseEntries(localStorage.getItem(STORE_KEY));
+  } catch {
+    return [];
+  }
+};
+const fmt = (n: number) => (n >= 100 ? `$${Math.round(n)}` : `$${n.toFixed(2)}`);
 
 const toNumber = (s: string) => {
   const n = parseFloat(s.replace(/[^0-9.]/g, ''));
@@ -34,6 +45,27 @@ export function SaleCheckCard({ result }: { result: ProductScanResult }) {
     [tag, was, result],
   );
   const good = outcome && (outcome.verdict === 'GREAT' || outcome.verdict === 'GOOD');
+
+  const [entries, setEntries] = useState<SaleEntry[]>(readEntries);
+  const typical = result.historicalPriceRange?.averagePrice || result.msrp || result.goodPrice || 0;
+  const tagValue = toNumber(tag);
+  // Remember the tag price once the shopper stops typing.
+  useEffect(() => {
+    if (!outcome || !(tagValue > 0)) return;
+    const id = setTimeout(() => {
+      setEntries((prev) => {
+        const next = recordEntry(prev, { name: result.productName, tag: tagValue, typical, t: Date.now() });
+        try {
+          localStorage.setItem(STORE_KEY, JSON.stringify(next));
+        } catch {
+          /* private mode: keep the tally for this visit only */
+        }
+        return next;
+      });
+    }, 1500);
+    return () => clearTimeout(id);
+  }, [tagValue, typical, result.productName, outcome]);
+  const tally = useMemo(() => summarize(entries), [entries]);
 
   return (
     <div className="ss-card rounded-3xl p-5 space-y-3">
@@ -72,6 +104,12 @@ export function SaleCheckCard({ result }: { result: ProductScanResult }) {
           <p className="mt-1">{outcome.detail}</p>
           <p className="mt-1 opacity-70">Based on SwiftScan's price estimates, which can be off. Not a claim about the store.</p>
         </div>
+      ) : null}
+      {tally.items > 0 ? (
+        <p className="text-[11px] text-slate-500 dark:text-slate-400" data-testid="sale-tally">
+          Your tally: {tally.items} price{tally.items === 1 ? '' : 's'} checked
+          {tally.below > 0 ? `, ${tally.below} below SwiftScan's typical price (${fmt(tally.spotted)} in total)` : ''}. Prices spotted, not money saved.
+        </p>
       ) : null}
     </div>
   );
