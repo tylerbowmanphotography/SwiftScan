@@ -6,6 +6,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SaleCheck } from '../components/SaleCheck';
 import { Card, Pill, PrimaryButton, SecondaryButton, SectionTitle } from '../components/ui';
 import { getAffiliateConfig, getAffiliateUrl, hasAffiliateIds } from '../lib/affiliate';
 import * as api from '../lib/api';
@@ -108,6 +109,7 @@ export default function ResultScreen() {
           </Card>
         ) : null}
 
+        <SaleCheck r={r} />
         <PriceComparison r={r} />
         <Coupons r={r} />
         <PriceHistory r={r} />
