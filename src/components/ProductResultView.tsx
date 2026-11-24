@@ -538,6 +538,16 @@ Summary: ${result.summary}`;
             </div>
           );
         })()}
+
+        {result.priceHistory && result.priceHistory.checks >= 2 && result.priceHistory.low && result.priceHistory.high ? (
+          <p className="text-xs text-slate-600 dark:text-slate-300 leading-snug">
+            SwiftScan has price-checked this {result.priceHistory.checks} times
+            {result.priceHistory.since ? ` since ${new Date(result.priceHistory.since).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}.
+            Its fair price ranged {formatCurrency(result.priceHistory.low)}
+            {result.priceHistory.high > result.priceHistory.low ? `–${formatCurrency(result.priceHistory.high)}` : ''}.
+            <span className="text-slate-500 dark:text-slate-400"> These are SwiftScan estimates, not store prices.</span>
+          </p>
+        ) : null}
       </div>
 
       {/* NAVIGATION TABS FOR DETAILED SECTIONS */}

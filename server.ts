@@ -768,7 +768,7 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
       if (hit?.productName) {
         if (linkCode?.ok) await rememberBarcode(linkCode.code, hit);
         const history = historyKey ? await recordPriceHistory(historyKey, hit) : null;
-        return res.json({ success: true, found: true, data: hit, cached: true, ...(history ? { history } : {}) });
+        return res.json({ success: true, found: true, data: history ? { ...hit, priceHistory: history } : hit, cached: true, ...(history ? { history } : {}) });
       }
     } catch (err: any) {
       console.warn("Scan cache read failed:", err?.message || err);
@@ -827,7 +827,7 @@ Rules: prices are USD numbers and are estimates; only include specs you are conf
         }
         if (linkCode?.ok) await rememberBarcode(linkCode.code, normalized);
         const history = historyKey ? await recordPriceHistory(historyKey, normalized) : null;
-        return res.json({ success: true, found: true, data: normalized, ...(history ? { history } : {}) });
+        return res.json({ success: true, found: true, data: history ? { ...normalized, priceHistory: history } : normalized, ...(history ? { history } : {}) });
       } catch (jsonErr) {
         console.warn("JSON parse error:", jsonErr);
         aiError = aiError || "The AI returned a response that could not be read.";
