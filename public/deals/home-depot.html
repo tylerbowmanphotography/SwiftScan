@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home Depot coupons and promo codes | SwiftScan</title>
+<meta name="description" content="Current Home Depot coupons, promo codes and sales found on the web, plus how to check if a Home Depot deal is really a good price. Not guaranteed.">
+<link rel="canonical" href="https://www.swiftscan.store/deals/home-depot">
+<meta property="og:title" content="Home Depot coupons and promo codes | SwiftScan"><meta property="og:description" content="Current Home Depot coupons, promo codes and sales found on the web, plus how to check if a Home Depot deal is really a good price. Not guaranteed."><meta property="og:url" content="https://www.swiftscan.store/deals/home-depot"><meta property="og:type" content="website">
+<meta name="theme-color" content="#db2777"><meta name="robots" content="index,follow">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style>
+:root{--bg:#f8fafc;--fg:#1e293b;--muted:#475569;--card:#fff;--line:#e2e8f0;--brand:#be185d}
+@media(prefers-color-scheme:dark){:root{--bg:#070b19;--fg:#e2e8f0;--muted:#94a3b8;--card:#0b1124;--line:rgba(255,255,255,.09);--brand:#f9a8d4}}
+*{box-sizing:border-box}
+body{margin:0;font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;line-height:1.7;color:var(--fg);background:var(--bg)}
+.bar{border-bottom:1px solid var(--line);background:var(--card)}
+.bar div{max-width:760px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between}
+.brand{font-weight:900;font-size:20px;letter-spacing:-.02em;color:var(--fg);text-decoration:none}.brand span{color:var(--brand)}
+.back{font-weight:700;font-size:14px;text-decoration:none;color:var(--brand)}
+main{max-width:760px;margin:28px auto 64px;padding:28px 22px 36px;background:var(--card);border:1px solid var(--line);border-radius:24px}
+@media(max-width:800px){main{margin:16px 12px 48px;padding:22px 18px}}
+h1{font-size:32px;line-height:1.15;letter-spacing:-.025em;font-weight:900;margin:0 0 8px}
+h2{font-size:19px;margin:28px 0 6px}
+p,li{font-size:16px}small{color:var(--muted)}a{color:var(--brand)}
+.deal{border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin:10px 0}
+.deal b{display:block}.code{display:inline-block;margin-top:6px;border:2px dashed var(--brand);border-radius:8px;padding:2px 10px;font-family:ui-monospace,Menlo,monospace;font-weight:800}
+.cta{display:inline-block;margin:6px 8px 0 0;padding:10px 16px;border-radius:12px;background:#db2777;color:#fff;font-weight:800;text-decoration:none}
+:focus-visible{outline:2px solid #db2777;outline-offset:2px}
+</style></head><body>
+<header class="bar"><div><a class="brand" href="/">Swift<span>Scan</span></a><a class="back" href="/deals">All stores</a></div></header>
+<main>
+<h1>Home Depot coupons and promo codes</h1>
+<p>Home Depot sales are often bundle or appliance deals, and some only apply in store or on a minimum spend.</p>
+<h2>Current Home Depot deals</h2>
+<div id="deals"><p><small>Searching the web for Home Depot deals…</small></p></div>
+<noscript><p>Turn on JavaScript to see live Home Depot deals, or <a href="/deals">open the deals page</a>.</p></noscript>
+<p><small>Found on the web and not guaranteed. Check the terms at the store before you buy. SwiftScan does not pay cash back on these.</small></p>
+<h2>Is a Home Depot deal really a good price?</h2>
+<p>A big "percent off" can sit on top of an inflated list price. SwiftScan estimates what an item is worth from a photo or barcode, and checks whether a sale price beats it. Prices are SwiftScan's estimates, not live store prices.</p>
+<a class="cta" href="/black-friday">Check a sale price</a><a class="cta" href="https://apps.apple.com/app/id6823987573">Get the iPhone app</a>
+<h2>Other stores</h2>
+<p><a href="/deals/amazon">Amazon</a> · <a href="/deals/walmart">Walmart</a> · <a href="/deals/target">Target</a> · <a href="/deals/best-buy">Best Buy</a> · <a href="/deals/lowes">Lowe's</a> · <a href="/deals/costco">Costco</a> · <a href="/deals/kohls">Kohl's</a> · <a href="/deals/nike">Nike</a> · <a href="/deals/apple">Apple</a></p>
+</main>
+<script>
+fetch("/api/deals?store=Home%20Depot").then(function(r){return r.json()}).then(function(d){
+  var el=document.getElementById('deals');
+  if(!d||!d.coupons||!d.coupons.length){el.textContent="No current Home Depot coupons found right now. Check back soon.";return}
+  el.innerHTML='';
+  d.coupons.forEach(function(c){
+    var div=document.createElement('div');div.className='deal';
+    var b=document.createElement('b');b.textContent=c.title;div.appendChild(b);
+    var s=document.createElement('small');s.textContent=(c.expires?'Ends '+c.expires+' · ':'')+'Found on '+c.sourceDomain;div.appendChild(s);
+    if(c.code){var k=document.createElement('div');var cd=document.createElement('span');cd.className='code';cd.textContent=c.code;k.appendChild(cd);div.appendChild(k)}
+    var a=document.createElement('a');a.href=c.sourceUrl;a.target='_blank';a.rel='noopener noreferrer sponsored';a.textContent='View deal';var w=document.createElement('div');w.appendChild(a);div.appendChild(w);
+    el.appendChild(div);
+  });
+}).catch(function(){document.getElementById('deals').innerHTML='<p>Deals could not load right now.</p>'});
+</script>
+</body></html>
