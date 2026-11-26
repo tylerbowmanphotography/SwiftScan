@@ -30,6 +30,8 @@ export interface Alert {
   lastChecked?: number;
   notified?: boolean;
   notifiedAt?: number;
+  /** Price at the start of the current week, used by the weekly price-drop email */
+  baseline?: { price: number; t: number };
 }
 
 const INDEX_KEY = "alerts:index";
@@ -167,6 +169,7 @@ export async function runAlertCheck(opts: {
         const updated: Alert = { ...alert, lastChecked: Date.now() };
         if (est && Number.isFinite(est.price) && est.price > 0) {
           updated.lastPrice = est.price;
+          if (!updated.baseline) updated.baseline = { price: est.price, t: Date.now() };
           if (est.price <= alert.targetPrice) {
             if (!alert.notified) {
               await send({ to: email, ...buildAlertEmail(email, alert, est, opts.origin) });
@@ -250,6 +253,88 @@ export async function runDigest(opts: { origin: string; kind: DigestKind; send: 
     } catch (err: any) {
       out.failed++;
       console.warn("Digest send failed:", err?.message || err);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Weekly price-drop email: items whose estimate fell at least 5% since the start of the week
+// ---------------------------------------------------------------------------
+
+const WEEK_MS = 5 * 24 * 60 * 60 * 1000; // a baseline must be at least 5 days old to count
+export const DROP_MIN_PCT = 5;
+
+export interface PriceDrop {
+  alert: Alert;
+  from: number;
+  to: number;
+  pct: number;
+}
+
+export function findDrops(alerts: Alert[], now = Date.now()): PriceDrop[] {
+  const out: PriceDrop[] = [];
+  for (const a of alerts) {
+    if (!a.baseline || !(a.lastPrice && a.lastPrice > 0) || now - a.baseline.t < WEEK_MS) continue;
+    const pct = Math.round(((a.baseline.price - a.lastPrice) / a.baseline.price) * 100);
+    if (pct >= DROP_MIN_PCT) out.push({ alert: a, from: a.baseline.price, to: a.lastPrice, pct });
+  }
+  return out.sort((x, y) => y.pct - x.pct);
+}
+
+export function buildDropsEmail(email: string, drops: PriceDrop[], origin: string) {
+  const unsub = `${origin}/api/alerts/unsubscribe?t=${unsubToken(email, ALL_ALERTS)}`;
+  const hasTag = !!getAffiliateConfig().amazonTag;
+  const disclosure = hasTag ? "As an Amazon Associate I earn from qualifying purchases." : "";
+  const n = drops.length;
+  const subject = `${n} item${n === 1 ? "" : "s"} you're watching look cheaper this week`;
+  const rows = drops.slice(0, 25).map((d) => ({ name: d.alert.productName, line: `was around ${money(d.from)}, now around ${money(d.to)} (about ${d.pct}% lower)`, link: amazonSearchUrl(d.alert.productName) }));
+  const text = [
+    "SwiftScan's estimates for these items fell this week. Prices are AI/web-search estimates, not live store prices, so check the store before you buy.",
+    "",
+    ...rows.map((r) => `- ${r.name}: ${r.line}. Look it up: ${r.link}`),
+    disclosure,
+    "",
+    `You're getting this because you set price alerts in SwiftScan. Stop all alert emails: ${unsub}`,
+  ].filter((l, i, a) => l !== "" || a[i - 1] !== "").join("\n");
+  const html = `<div style="font-family:system-ui,sans-serif;max-width:480px;line-height:1.5">
+<h2 style="margin:0 0 8px">Cheaper this week</h2>
+<p style="color:#555;font-size:13px">SwiftScan's estimates for these items fell this week. They are AI/web-search estimates, not live store prices. Check the store before you buy.</p>
+<ul style="padding-left:18px">${rows.map((r) => `<li><strong>${escapeHtml(r.name)}</strong>: ${escapeHtml(r.line)}. <a href="${escapeHtml(r.link)}" style="color:${BRAND_LINK}">Look it up</a></li>`).join("")}</ul>
+${disclosure ? `<p style="color:#777;font-size:12px">${disclosure}</p>` : ""}
+<p style="color:#777;font-size:12px">You're getting this because you set price alerts in SwiftScan. <a href="${escapeHtml(unsub)}" style="color:${BRAND_LINK}">Stop all alert emails</a></p>
+</div>`;
+  return { subject, text, html };
+}
+
+/** Dry run by default. When sending, also starts a new week: every alert's baseline moves to its current price. */
+export async function runWeeklyDrops(opts: { origin: string; send: boolean; sender?: typeof sendEmail; now?: number }) {
+  const s = getStore();
+  const out = { recipients: 0, sent: 0, failed: 0, sample: null as null | { subject: string; text: string } };
+  if (!s) return out;
+  const sender = opts.sender || sendEmail;
+  const now = opts.now ?? Date.now();
+  for (const email of await s.smembers(INDEX_KEY)) {
+    const list = await listAlerts(email);
+    const drops = findDrops(list, now);
+    if (drops.length) {
+      out.recipients++;
+      const mail = buildDropsEmail(email, drops, opts.origin);
+      if (!out.sample) out.sample = { subject: mail.subject, text: mail.text.replace(email, "you@example.com") };
+      if (opts.send) {
+        try {
+          await sender({ to: email, ...mail });
+          out.sent++;
+        } catch (err: any) {
+          out.failed++;
+          console.warn("Weekly drops send failed:", err?.message || err);
+        }
+      }
+    }
+    if (opts.send) {
+      for (const a of list) {
+        if (a.baseline && a.lastPrice && now - a.baseline.t >= WEEK_MS) await s.hset(alertsKey(email), a.id, { ...a, baseline: { price: a.lastPrice, t: now } });
+      }
     }
   }
   return out;
@@ -367,6 +452,7 @@ export function registerAlertRoutes(app: Express, estimate: PriceEstimator) {
         // changing the target re-arms the alert
         notified: prev && prev.targetPrice === Number(targetPrice.toFixed(2)) ? prev.notified : false,
         notifiedAt: prev?.notifiedAt,
+        baseline: prev?.baseline,
       };
       await s.hset(alertsKey(email), id, alert);
       await s.sadd(INDEX_KEY, email);
@@ -421,6 +507,23 @@ export function registerAlertRoutes(app: Express, estimate: PriceEstimator) {
   });
 
   // ---- cron ----
+
+  // Weekly price-drop email. Dry run unless ?send=1 AND WEEKLY_DROPS_ENABLED=1; never scheduled.
+  app.get(["/api/cron/weekly-drops", "/api/cron/weekly-drops/"], async (req, res) => {
+    const cronSecret = clean(process.env.CRON_SECRET);
+    if (!cronSecret) return res.status(503).json({ success: false, error: "CRON_SECRET is not configured." });
+    if (!safeEqual(String(req.headers.authorization || ""), `Bearer ${cronSecret}`)) return res.status(401).json({ success: false, error: "Unauthorized." });
+    if (!getStore()) return res.status(503).json({ success: false, error: "Database not configured." });
+    const wantSend = req.query.send === "1";
+    const enabled = clean(process.env.WEEKLY_DROPS_ENABLED) === "1";
+    try {
+      const result = await runWeeklyDrops({ origin: appOrigin(req), send: wantSend && enabled });
+      res.json({ success: true, dryRun: !(wantSend && enabled), sendBlocked: wantSend && !enabled ? "Set WEEKLY_DROPS_ENABLED=1 to allow sending." : undefined, ...result });
+    } catch (err: any) {
+      console.warn("Weekly drops error:", err?.message || err);
+      res.status(500).json({ success: false, error: "Weekly drops failed." });
+    }
+  });
 
   // Black Friday / Cyber Monday digest. Dry run unless ?send=1 AND BF_DIGEST_ENABLED=1; never scheduled.
   app.get(["/api/cron/bf-digest", "/api/cron/bf-digest/"], async (req, res) => {

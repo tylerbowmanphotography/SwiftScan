@@ -621,3 +621,43 @@ test("bf digest: dry run by default, sends only with send=1 and BF_DIGEST_ENABLE
     delete process.env.BF_DIGEST_ENABLED;
   }
 });
+
+
+test("weekly drops: baseline is set by the check, drops need 5+ days and 5%, dry run by default, sending rolls the week", async () => {
+  const db = new MemoryStore();
+  setStoreForTests(db);
+  const c = new Client();
+  await signIn(c, "drops@example.com");
+  assert.equal((await c.put("/api/alerts", { productName: "Gadget", targetPrice: 1 })).status, 200);
+  const id = Object.keys(await db.hgetall("alerts:drops@example.com"))[0];
+  const a: any = (await db.hgetall("alerts:drops@example.com"))[id];
+  const day = 24 * 60 * 60 * 1000;
+  // baseline 6 days old at $100, price now $90 => 10% drop
+  await db.hset("alerts:drops@example.com", id, { ...a, lastPrice: 90, baseline: { price: 100, t: Date.now() - 6 * day } });
+  const auth = { authorization: "Bearer cron_test_secret" };
+  assert.equal((await c.get("/api/cron/weekly-drops")).status, 401);
+  sent.length = 0;
+  let r = await c.get("/api/cron/weekly-drops", auth);
+  assert.equal(r.json.dryRun, true);
+  assert.equal(r.json.recipients, 1);
+  assert.equal(sent.length, 0);
+  r = await c.get("/api/cron/weekly-drops?send=1", auth);
+  assert.ok(r.json.sendBlocked);
+  assert.equal(sent.length, 0);
+  // too-new baseline or small drop => no email
+  const { findDrops } = alertsMod;
+  assert.equal(findDrops([{ ...a, lastPrice: 90, baseline: { price: 100, t: Date.now() - 1 * day } }]).length, 0);
+  assert.equal(findDrops([{ ...a, lastPrice: 97, baseline: { price: 100, t: Date.now() - 6 * day } }]).length, 0);
+  process.env.WEEKLY_DROPS_ENABLED = "1";
+  try {
+    r = await c.get("/api/cron/weekly-drops?send=1", auth);
+    assert.equal(r.json.sent, 1);
+    assert.match(sent[0].subject, /look cheaper this week/);
+    const after: any = (await db.hgetall("alerts:drops@example.com"))[id];
+    assert.equal(after.baseline.price, 90); // new week starts at the current price
+    r = await c.get("/api/cron/weekly-drops?send=1", auth);
+    assert.equal(r.json.recipients, 0); // nothing to send again
+  } finally {
+    delete process.env.WEEKLY_DROPS_ENABLED;
+  }
+});
