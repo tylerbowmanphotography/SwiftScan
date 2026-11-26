@@ -1,8 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { addGift, emptyList, parseGiftList, removeGift, setBudget, totals, type GiftList as List } from '../lib/giftList';
+import { Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { addGift, emptyList, encodeShare, parseGiftList, removeGift, setBudget, totals, type GiftList as List } from '../lib/giftList';
 import { colors, radius } from '../lib/theme';
 import type { ProductScanResult } from '../lib/types';
 import { Card, SecondaryButton, SectionTitle } from './ui';
@@ -31,6 +31,9 @@ export function GiftList({ r }: { r: ProductScanResult }) {
   const save = (next: List) => {
     setList(next);
     AsyncStorage.setItem(STORE_KEY, JSON.stringify(next)).catch(() => {});
+  };
+  const shareList = () => {
+    Share.share({ message: `My gift list on SwiftScan: https://www.swiftscan.store/gifts#${encodeShare(list)}` }).catch(() => {});
   };
   const planned = toNumber(price) || r.goodPrice || r.msrp || 0;
   const t = totals(list);
@@ -74,6 +77,7 @@ export function GiftList({ r }: { r: ProductScanResult }) {
             {`Total ${fmt(t.total)} for ${t.count} gift${t.count === 1 ? '' : 's'}`}
             {t.left !== null ? (t.over ? `, ${fmt(Math.abs(t.left))} over budget` : `, ${fmt(t.left)} left`) : ''}
           </Text>
+          <SecondaryButton title="Share this list" onPress={shareList} />
           <Text style={styles.hint}>{"Prices are your own or SwiftScan's estimates, not store prices."}</Text>
         </View>
       ) : null}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Gift, X } from 'lucide-react';
+import { Gift, Share2, X } from 'lucide-react';
 import { ProductScanResult } from '../types';
-import { addGift, emptyList, parseGiftList, removeGift, setBudget, totals, GiftList } from '../utils/giftList';
+import { addGift, emptyList, encodeShare, parseGiftList, removeGift, setBudget, totals, GiftList } from '../utils/giftList';
 
 const STORE_KEY = 'ss_gift_list';
 const fmt = (n: number) => (n >= 100 ? `$${Math.round(n)}` : `$${n.toFixed(2)}`);
@@ -28,6 +28,20 @@ export function GiftListCard({ result }: { result: ProductScanResult }) {
       localStorage.setItem(STORE_KEY, JSON.stringify(next));
     } catch {
       /* private mode: the list lasts for this visit only */
+    }
+  };
+  const [copied, setCopied] = useState(false);
+  const share = async () => {
+    const url = `https://www.swiftscan.store/gifts#${encodeShare(list)}`;
+    try {
+      if (navigator.share) await navigator.share({ title: 'My gift list', text: 'My gift list on SwiftScan', url });
+      else {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    } catch {
+      /* the share sheet was closed */
     }
   };
   const planned = toNumber(price) || result.goodPrice || result.msrp || 0;
@@ -82,7 +96,8 @@ export function GiftListCard({ result }: { result: ProductScanResult }) {
             Total {fmt(t.total)} for {t.count} gift{t.count === 1 ? '' : 's'}
             {t.left !== null ? (t.over ? `, ${fmt(Math.abs(t.left))} over budget` : `, ${fmt(t.left)} left`) : ''}
           </p>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">Prices are your own or SwiftScan's estimates, not store prices.</p>
+          <button onClick={share} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/20 px-3 py-1.5 text-[11px] font-bold text-slate-700 dark:text-slate-200"><Share2 size={13} /> {copied ? 'Link copied' : 'Share this list'}</button>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">The link holds the list itself; SwiftScan does not store it. Prices are your own or SwiftScan's estimates, not store prices.</p>
         </div>
       ) : null}
     </div>
