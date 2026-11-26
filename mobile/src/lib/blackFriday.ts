@@ -31,3 +31,9 @@ export const BF_PROMO = {
 export function isPromoActive(now: Date = new Date()): boolean {
   return now >= new Date(BF_PROMO.year, 10, 25) && now < new Date(BF_PROMO.year, 11, 2);
 }
+
+/** Refer-a-friend offer code: 3 days free for new subscribers. Created in App Store Connect, no end date, limit 500. */
+export const FRIEND_CODE = {
+  code: 'SWIFTFRIEND',
+  url: 'https://apps.apple.com/redeem?ctx=offercodes&id=6823987573&code=SWIFTFRIEND',
+} as const;

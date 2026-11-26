@@ -2,11 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card, PrimaryButton, SecondaryButton } from '../components/ui';
 import { SITE_URL } from '../lib/api';
-import { BF_PROMO, isPromoActive } from '../lib/blackFriday';
+import { BF_PROMO, FRIEND_CODE, isPromoActive } from '../lib/blackFriday';
 import { useIap } from '../lib/iap';
 import { useApp } from '../lib/store';
 import { colors } from '../lib/theme';
@@ -56,6 +56,16 @@ export default function ProScreen() {
             </View>
           </View>
         ))}
+      </Card>
+
+      <Card style={{ gap: 10 }}>
+        <Text style={styles.perkTitle}>Give a friend a free trial</Text>
+        <Text style={styles.muted}>Send a link that gives a friend 3 free days of SwiftScan Pro. It works for people who have not subscribed before.</Text>
+        <SecondaryButton
+          title="Share a free trial"
+          onPress={() => Share.share({ message: `Try SwiftScan Pro free for 3 days (it checks if a price is a good deal): ${FRIEND_CODE.url}` })}
+          icon={<Ionicons name="gift-outline" size={18} color={colors.textMuted} />}
+        />
       </Card>
 
       {isPro ? (
