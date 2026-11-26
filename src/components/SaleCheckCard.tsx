@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BadgeCheck, TriangleAlert } from 'lucide-react';
+import { BadgeCheck, Bell, Share2, TriangleAlert } from 'lucide-react';
 import { ProductScanResult } from '../types';
 import { checkSale, SaleVerdict } from '../utils/saleCheck';
 import { parseEntries, recordEntry, summarize, SaleEntry } from '../utils/savings';
@@ -28,7 +28,8 @@ const TONE: Record<SaleVerdict, string> = {
 };
 
 /** "Is this sale real?": type the price on the tag (and the crossed-out price) to compare with SwiftScan's estimate. */
-export function SaleCheckCard({ result }: { result: ProductScanResult }) {
+export function SaleCheckCard({ result, onWatchPrice }: { result: ProductScanResult; onWatchPrice?: () => void }) {
+  const [shared, setShared] = useState(false);
   const [tag, setTag] = useState('');
   const [was, setWas] = useState('');
   const outcome = useMemo(
@@ -67,6 +68,23 @@ export function SaleCheckCard({ result }: { result: ProductScanResult }) {
   }, [tagValue, typical, result.productName, outcome]);
   const tally = useMemo(() => summarize(entries), [entries]);
 
+  const share = async () => {
+    if (!outcome) return;
+    const text = `I checked ${result.productName} with SwiftScan: "${outcome.headline}" at ${fmt(tagValue)}. ${outcome.detail}`;
+    const url = 'https://www.swiftscan.store';
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'SwiftScan sale check', text, url });
+      } else {
+        await navigator.clipboard.writeText(`${text} ${url}`);
+        setShared(true);
+        setTimeout(() => setShared(false), 2000);
+      }
+    } catch {
+      /* the share sheet was closed */
+    }
+  };
+
   return (
     <div className="ss-card rounded-3xl p-5 space-y-3">
       <div>
@@ -103,7 +121,20 @@ export function SaleCheckCard({ result }: { result: ProductScanResult }) {
           </div>
           <p className="mt-1">{outcome.detail}</p>
           <p className="mt-1 opacity-70">Based on SwiftScan's price estimates, which can be off. Not a claim about the store.</p>
+          <button onClick={share} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-current/30 px-3 py-1.5 text-[11px] font-bold">
+            <Share2 size={13} />
+            <span>{shared ? 'Copied' : 'Share this check'}</span>
+          </button>
         </div>
+      ) : null}
+      {onWatchPrice ? (
+        <button
+          onClick={onWatchPrice}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 dark:bg-white px-4 py-2 text-xs font-bold text-white dark:text-slate-900"
+        >
+          <Bell size={14} />
+          <span>Watch this price (email me if it drops)</span>
+        </button>
       ) : null}
       {tally.items > 0 ? (
         <p className="text-[11px] text-slate-500 dark:text-slate-400" data-testid="sale-tally">

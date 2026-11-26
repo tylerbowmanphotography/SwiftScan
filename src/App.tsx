@@ -23,6 +23,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 import { Header } from './components/Header';
+import { BlackFridayBanner } from './components/BlackFridayBanner';
 import { CameraScannerModal } from './components/CameraScannerModal';
 import { ProductResultView } from './components/ProductResultView';
 import { ScanHistoryDrawer } from './components/ScanHistoryDrawer';
@@ -560,6 +561,21 @@ export default function App() {
     );
   };
 
+  /** One-tap "watch this price" from a result: email alert at the great-deal price. */
+  const handleWatchResult = (r: ProductScanResult) => {
+    const price = r.greatDealPrice > 0 ? r.greatDealPrice : r.goodPrice;
+    if (!(price > 0)) return;
+    if (user) {
+      saveServerAlert(r.productName, r.brand, price).then((res) => {
+        if (res.ok) setCheckoutNotice(`Done. We will email you if ${r.productName} drops to about $${price.toFixed(2)}.`);
+        else setErrorMessage(res.error || 'Could not save the email alert.');
+      });
+    } else if (appConfig?.accounts?.enabled) {
+      pendingAlert.current = { name: r.productName, brand: r.brand, price };
+      setAccountModal({ reason: 'Sign in with your email and we will email you if this item drops to its great-deal price.' });
+    }
+  };
+
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   
   const activeAlerts = savedItems.filter(item => 
@@ -720,10 +736,13 @@ export default function App() {
             onNewScan={() => setIsScannerOpen(true)}
             onCorrectScan={handleCorrectScan}
             onOpenSearch={() => setIsSearchOpen(true)}
+            onWatchPrice={appConfig?.accounts?.enabled ? () => handleWatchResult(currentScanResult) : undefined}
           />
         ) : !isLoading ? (
           /* Landing: hero, how it works, samples, features, Pro */
           <div className="space-y-14 sm:space-y-20">
+            <BlackFridayBanner onScan={() => setIsScannerOpen(true)} onSearch={() => setIsSearchOpen(true)} />
+
             <Hero onOpenScanner={() => setIsScannerOpen(true)} onOpenSearch={() => setIsSearchOpen(true)} />
 
             <HowItWorks />
