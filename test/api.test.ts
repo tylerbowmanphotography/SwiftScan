@@ -680,6 +680,37 @@ test("weekly drops: baseline is set by the check, drops need 5+ days and 5%, dry
 });
 
 
+test("coupon alerts: dry run sends nothing, sending emails each new coupon once, search count is capped", async () => {
+  const db = new MemoryStore();
+  setStoreForTests(db);
+  const c = new Client();
+  await signIn(c, "coup@example.com");
+  assert.equal((await c.put("/api/alerts", { productName: "Gadget", targetPrice: 1 })).status, 200);
+  assert.equal((await c.put("/api/alerts", { productName: "Widget", targetPrice: 1 })).status, 200);
+  assert.equal((await c.get("/api/cron/coupon-alerts")).status, 401);
+  const coupon = { store: "Target", title: "$5 off", kind: "code" as const, code: "SAVE5", sourceUrl: "https://target.com/x", sourceDomain: "target.com" };
+  let calls = 0;
+  const finder = async (name: string) => {
+    calls++;
+    return name === "Gadget" ? [coupon] : [];
+  };
+  const mails: any[] = [];
+  const sender = async (m: any) => { mails.push(m); };
+  let r = await alertsMod.runCouponAlerts({ origin: "https://x.test", send: false, finder, sender });
+  assert.equal(r.recipients, 1);
+  assert.equal(mails.length, 0);
+  assert.equal(calls, 2);
+  r = await alertsMod.runCouponAlerts({ origin: "https://x.test", send: true, finder, sender });
+  assert.equal(r.sent, 1);
+  assert.match(mails[0].subject, /New coupons for 1 item/);
+  assert.match(mails[0].text, /SAVE5/);
+  r = await alertsMod.runCouponAlerts({ origin: "https://x.test", send: true, finder, sender });
+  assert.equal(r.recipients, 0); // already sent
+  calls = 0;
+  r = await alertsMod.runCouponAlerts({ origin: "https://x.test", send: false, finder, sender, maxSearches: 1 });
+  assert.equal(calls, 1);
+});
+
 test("push: register needs sign-in and a valid token; alert hit sends a push; dead tokens are removed", async () => {
   const db = new MemoryStore();
   setStoreForTests(db);

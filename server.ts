@@ -593,7 +593,7 @@ These are estimates. If you cannot find a credible price, return {"lowestPrice":
 }
 
 // Saved-item sync, price alerts, and the daily alert cron
-registerAlertRoutes(app, estimateCurrentPrice);
+registerAlertRoutes(app, estimateCurrentPrice, (name, brand) => findCouponsForAlert(name, brand));
 registerPushRoutes(app);
 
 // Main Product Scan API endpoint
@@ -944,6 +944,31 @@ app.post(["/api/coupons", "/api/coupons/"], async (req, res) => {
     return res.json({ success: true, ...empty, searched: false });
   }
 });
+
+/** Coupon search for the weekly coupon alerts. Shares the product coupon finder's day-long cache and checks. */
+async function findCouponsForAlert(productName: string, brand?: string) {
+  if (!resolveGeminiKey().key || !SEARCH_GROUNDING) return [];
+  const db = getStore();
+  const key = `coupons:v5:${hashShort(couponCacheKey(productName, brand), 32)}`;
+  if (db) {
+    try {
+      const hit = await db.get<CouponResult>(key);
+      if (hit && Array.isArray(hit.coupons)) return hit.coupons;
+    } catch {}
+  }
+  const deadline = Date.now() + 52_000;
+  const ask = () =>
+    generateWithFallbackRaw(
+      { contents: buildCouponPrompt(productName, brand), config: { tools: [{ googleSearch: {} }], thinkingConfig: { thinkingLevel: COUPON_THINKING } } },
+      { deadline, perModelMs: 40_000 },
+    );
+  let { text, response } = await ask();
+  if (groundedSources(response).domains.size === 0 && deadline - Date.now() > 15_000) ({ text, response } = await ask());
+  const grounded = groundedSources(response);
+  const coupons = cleanCoupons(extractAndParseJSON(text), grounded.domains, new Date(), grounded.redirects);
+  if (db) await db.set(key, { coupons, links: fallbackCouponLinks(productName, brand), searchedAt: new Date().toISOString() } as CouponResult, { ex: coupons.length ? COUPON_CACHE_SECONDS : 6 * 3600 }).catch(() => {});
+  return coupons;
+}
 
 // Deals page: current coupons for a store from a fixed list, same grounded search and checks as the
 // product coupon finder. Cached for 12 hours so page views don't each pay for a search.
