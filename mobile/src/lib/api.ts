@@ -168,6 +168,18 @@ export async function findCoupons(p: ProductScanResult): Promise<CouponSearch> {
   };
 }
 
+export const DEAL_STORES = ['Amazon', 'Walmart', 'Target', 'Best Buy', 'Home Depot', "Lowe's", 'Costco', "Kohl's", 'Nike', 'Apple'] as const;
+
+export async function fetchDeals(store: string): Promise<CouponSearch> {
+  const r = await request(`/api/deals?store=${encodeURIComponent(store)}`, {}, 55000);
+  if (!r.ok || !r.data?.success) return { coupons: [], links: [], searched: false, error: r.data?.error || "Couldn't load deals." };
+  return {
+    coupons: Array.isArray(r.data.coupons) ? r.data.coupons : [],
+    links: Array.isArray(r.data.links) ? r.data.links : [],
+    searched: !!r.data.searched,
+  };
+}
+
 // ---- account (email one-time code) ------------------------------------------------------
 
 export async function requestCode(email: string) {
