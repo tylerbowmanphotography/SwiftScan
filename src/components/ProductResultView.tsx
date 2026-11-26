@@ -45,6 +45,7 @@ import { ReportIncorrectScanModal } from './ReportIncorrectScanModal';
 import { AdBanner } from './AdBanner';
 import { SaleCheckCard } from './SaleCheckCard';
 import { GiftListCard } from './GiftListCard';
+import { BuyTimingCard } from './BuyTimingCard';
 
 interface ProductResultViewProps {
   result: ProductScanResult;
@@ -560,6 +561,7 @@ Summary: ${result.summary}`;
       </div>
 
       <SaleCheckCard result={result} onWatchPrice={onWatchPrice} prefill={salePrefill} onPrefillUsed={onSalePrefillUsed} />
+      <BuyTimingCard result={result} />
       <GiftListCard result={result} />
 
       {/* NAVIGATION TABS FOR DETAILED SECTIONS */}
