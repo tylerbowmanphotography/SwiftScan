@@ -175,3 +175,12 @@ export async function findCoupons(productName: string, brand?: string, category?
   if (!res.ok || !data.success) throw new Error(data.error || 'Could not search for coupons.');
   return { coupons: data.coupons || [], links: data.links || [], searched: !!data.searched };
 }
+
+export const DEAL_STORES = ['Amazon', 'Walmart', 'Target', 'Best Buy', 'Home Depot', "Lowe's", 'Costco', "Kohl's", 'Nike', 'Apple'] as const;
+
+export async function fetchDeals(store: string): Promise<CouponSearch> {
+  const res = await fetch(`/api/deals?store=${encodeURIComponent(store)}`, { credentials: 'same-origin' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) throw new Error(data.error || 'Could not load deals.');
+  return { coupons: data.coupons || [], links: data.links || [], searched: !!data.searched };
+}

@@ -469,6 +469,16 @@ test("coupons: validates input; without search grounding returns search links on
   assert.ok(r.json.links.every((l: any) => l.url.startsWith("https://www.google.com/search?q=")));
 });
 
+test("deals: only listed stores; without search grounding returns links only", async () => {
+  const c = new Client();
+  assert.equal((await c.get("/api/deals?store=evil.com")).status, 400);
+  const r = await c.get("/api/deals?store=Target");
+  assert.equal(r.status, 200);
+  assert.equal(r.json.store, "Target");
+  assert.equal(r.json.searched, false);
+  assert.deepEqual(r.json.coupons, []);
+});
+
 test("pro sales off: no upgrade offered or sold, free limit still enforced", async () => {
   process.env.PRO_SALES = "off";
   try {

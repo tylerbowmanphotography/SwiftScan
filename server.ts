@@ -11,6 +11,9 @@ import { getStore } from "./server/db";
 import { hashShort } from "./server/util";
 import {
   buildCouponPrompt,
+  buildStoreDealsPrompt,
+  DEAL_STORES,
+  dealStore,
   cleanCoupons,
   couponCacheKey,
   domainOf,
@@ -942,6 +945,42 @@ app.post(["/api/coupons", "/api/coupons/"], async (req, res) => {
   }
 });
 
+// Deals page: current coupons for a store from a fixed list, same grounded search and checks as the
+// product coupon finder. Cached for 12 hours so page views don't each pay for a search.
+const DEALS_CACHE_SECONDS = 12 * 3600;
+app.get(["/api/deals", "/api/deals/"], async (req, res) => {
+  const storeName = dealStore(req.query.store);
+  if (!storeName) return res.status(400).json({ success: false, error: "Pick one of the listed stores.", stores: DEAL_STORES });
+  const empty: CouponResult = { coupons: [], links: fallbackCouponLinks(`${storeName} promo code`), searchedAt: new Date().toISOString() };
+  if (!resolveGeminiKey().key || !SEARCH_GROUNDING) return res.json({ success: true, ...empty, store: storeName, searched: false });
+  const db = getStore();
+  const key = `deals:v1:${storeName.toLowerCase().replace(/[^a-z]/g, "")}`;
+  if (db) {
+    try {
+      const hit = await db.get<CouponResult>(key);
+      if (hit && Array.isArray(hit.coupons)) return res.json({ success: true, ...hit, links: empty.links, store: storeName, searched: true, cached: true });
+    } catch {}
+  }
+  try {
+    const deadline = Date.now() + 52_000;
+    const ask = () =>
+      generateWithFallbackRaw(
+        { contents: buildStoreDealsPrompt(storeName), config: { tools: [{ googleSearch: {} }], thinkingConfig: { thinkingLevel: COUPON_THINKING } } },
+        { deadline, perModelMs: 40_000 },
+      );
+    let { text, response } = await ask();
+    if (groundedSources(response).domains.size === 0 && deadline - Date.now() > 15_000) ({ text, response } = await ask());
+    const grounded = groundedSources(response);
+    const coupons = cleanCoupons(extractAndParseJSON(text), grounded.domains, new Date(), grounded.redirects);
+    const result: CouponResult = { coupons, links: empty.links, searchedAt: new Date().toISOString() };
+    if (db) await db.set(key, result, { ex: coupons.length ? DEALS_CACHE_SECONDS : 3 * 3600 }).catch(() => {});
+    return res.json({ success: true, ...result, store: storeName, searched: true });
+  } catch (err: any) {
+    console.warn("Deals search failed:", err?.message || err);
+    return res.json({ success: true, ...empty, store: storeName, searched: false });
+  }
+});
+
 // Autocomplete / Search Suggestions (Low Latency)
 app.post(["/api/autocomplete", "/api/autocomplete/"], async (req, res) => {
   const { query } = req.body || {};
@@ -1042,6 +1081,7 @@ app.all("/api/*", (req, res) => {
       "/api/scan",
       "/api/ask",
       "/api/coupons",
+      "/api/deals",
       "/api/autocomplete",
       "/api/local-stores",
       "/api/config",

@@ -68,6 +68,7 @@ export default function Home() {
             <HeaderButton icon={user ? 'person' : 'person-outline'} label="Account" onPress={() => router.push('/account')} active={!!user} />
           ) : null}
           <HeaderButton icon="search-outline" label="Search" onPress={() => router.push('/search')} />
+          <HeaderButton icon="pricetags-outline" label="Deals" onPress={() => router.push('/deals')} />
           <HeaderButton icon="time-outline" label="History" onPress={() => router.push('/history')} />
         </View>
       </View>

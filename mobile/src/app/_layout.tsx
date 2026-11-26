@@ -28,6 +28,7 @@ export default function RootLayout() {
           <Stack.Screen name="result" options={{ title: '' }} />
           <Stack.Screen name="history" options={{ title: 'Your scans' }} />
           <Stack.Screen name="account" options={{ title: 'Account', presentation: 'modal' }} />
+          <Stack.Screen name="deals" options={{ title: 'Coupons & deals' }} />
           <Stack.Screen name="pro" options={{ title: 'SwiftScan Pro', presentation: 'modal' }} />
         </Stack>
         <SiriBridge />

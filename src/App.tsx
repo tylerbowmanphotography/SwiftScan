@@ -25,6 +25,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Header } from './components/Header';
 import { BlackFridayBanner } from './components/BlackFridayBanner';
 import { BlackFridayLanding, SalePrefill } from './components/BlackFridayLanding';
+import { DealsPage } from './components/DealsPage';
 import { SharedGiftList } from './components/SharedGiftList';
 import { decodeShare } from './utils/giftList';
 import { CameraScannerModal } from './components/CameraScannerModal';
@@ -56,6 +57,7 @@ export default function App() {
   const [salePrefill, setSalePrefill] = useState<SalePrefill | null>(null);
   const sharedGifts = typeof window !== 'undefined' && window.location.pathname.replace(/\/$/, '') === '/gifts' ? decodeShare(window.location.hash) : null;
   const isBfPage = typeof window !== 'undefined' && window.location.pathname.replace(/\/$/, '') === '/black-friday';
+  const isDealsPage = typeof window !== 'undefined' && window.location.pathname.replace(/\/$/, '') === '/deals';
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -751,9 +753,11 @@ export default function App() {
           <div className="space-y-14 sm:space-y-20">
             {sharedGifts ? <SharedGiftList list={sharedGifts} /> : null}
 
-            {!isBfPage && !sharedGifts && <BlackFridayBanner onScan={() => setIsScannerOpen(true)} onSearch={() => setIsSearchOpen(true)} />}
+            {!isBfPage && !isDealsPage && !sharedGifts && <BlackFridayBanner onScan={() => setIsScannerOpen(true)} onSearch={() => setIsSearchOpen(true)} />}
 
-            {sharedGifts ? null : isBfPage ? (
+            {sharedGifts ? null : isDealsPage ? (
+              <DealsPage />
+            ) : isBfPage ? (
               <BlackFridayLanding
                 isLoading={isLoading}
                 onCheck={(name, prefill) => {

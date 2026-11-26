@@ -151,3 +151,38 @@ export function fallbackCouponLinks(productName: string, brand?: string): Coupon
   links.push({ label: "Rebates", url: q(`${productName} rebate`) });
   return links;
 }
+
+/** Stores the Deals page can search. A fixed list keeps the search bill and the cache bounded. */
+export const DEAL_STORES = [
+  "Amazon",
+  "Walmart",
+  "Target",
+  "Best Buy",
+  "Home Depot",
+  "Lowe's",
+  "Costco",
+  "Kohl's",
+  "Nike",
+  "Apple",
+] as const;
+
+export function dealStore(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const q = raw.trim().toLowerCase();
+  return DEAL_STORES.find((s) => s.toLowerCase() === q) ?? null;
+}
+
+export function buildStoreDealsPrompt(store: string): string {
+  const today = new Date().toISOString().slice(0, 10);
+  return `Today is ${today}. Search the web for the best coupons, promo codes and sitewide sales a US shopper can use RIGHT NOW at ${store}.
+
+You MUST use Google Search before answering. Run 2 or 3 quick searches, for example "${store} promo code" and "${store} coupons this week".
+
+Rules:
+- Only include a deal you actually found on a web page in your search results, and give that page's exact URL.
+- Skip anything expired and generic "sign up for emails" offers.
+- If you find nothing current, return an empty list. Never invent a code.
+
+Reply with ONLY this JSON, no other text:
+{"coupons":[{"store":"${store}","title":"short description, e.g. 20% off sitewide","kind":"code|deal|store_coupon|manufacturer|rebate","code":"promo code if one is needed, else omit","expires":"YYYY-MM-DD if stated, else omit","sourceUrl":"https://... page where you found it"}]}`;
+}

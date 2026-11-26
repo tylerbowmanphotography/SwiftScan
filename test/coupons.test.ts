@@ -1,7 +1,7 @@
 /** Coupon finder helpers. Run: npm test */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanCoupons, domainOf, fallbackCouponLinks, groundedDomains, groundedSources, MAX_COUPONS } from "../server/coupons";
+import { buildStoreDealsPrompt, DEAL_STORES, dealStore, cleanCoupons, domainOf, fallbackCouponLinks, groundedDomains, groundedSources, MAX_COUPONS } from "../server/coupons";
 
 const NOW = new Date("2026-10-30T12:00:00Z");
 const grounding = (sites: string[]) => ({
@@ -91,4 +91,17 @@ test("cleanCoupons accepts Google grounding redirect links and maps them to the 
     g.redirects,
   );
   assert.deepEqual(out.map((c) => [c.store, c.sourceDomain, c.sourceUrl]), [["Target", "target.com", R + "abc"]]);
+});
+
+test("dealStore only accepts the fixed store list (case-insensitive)", () => {
+  assert.equal(dealStore("best buy"), "Best Buy");
+  assert.equal(dealStore(" LOWE'S "), "Lowe's");
+  assert.equal(dealStore("evil.com"), null);
+  assert.equal(dealStore(undefined), null);
+  assert.ok(DEAL_STORES.length >= 8);
+});
+
+test("buildStoreDealsPrompt names the store and forbids invented codes", () => {
+  const p = buildStoreDealsPrompt("Target");
+  assert.ok(p.includes("Target") && p.includes("Never invent a code"));
 });
