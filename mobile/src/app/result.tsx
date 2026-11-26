@@ -6,6 +6,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BuyTiming } from '../components/BuyTiming';
 import { GiftList } from '../components/GiftList';
 import { SaleCheck } from '../components/SaleCheck';
 import { Card, Pill, PrimaryButton, SecondaryButton, SectionTitle } from '../components/ui';
@@ -111,6 +112,7 @@ export default function ResultScreen() {
         ) : null}
 
         <SaleCheck r={r} />
+        <BuyTiming r={r} />
         <GiftList r={r} />
         <PriceComparison r={r} />
         <Coupons r={r} />
