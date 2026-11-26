@@ -26,3 +26,14 @@ test("gift list ignores bad input and bad saved data", () => {
   assert.deepEqual(parseGiftList(null), emptyList());
   assert.equal(parseGiftList(JSON.stringify({ budget: 100, items: [{ name: "a", price: 3, t: 1 }, { bad: 1 }] })).items.length, 1);
 });
+
+import { encodeShare, decodeShare } from "../src/utils/giftList";
+test("share link round trip keeps names, prices and budget; bad links decode to null", () => {
+  const l = setBudget(addGift(addGift(emptyList(), { name: "Lego & Co. <set>", price: 49.5, t: 1 }), { name: "Headphones", price: 199, t: 2 }), 300);
+  const back = decodeShare("#" + encodeShare(l))!;
+  assert.equal(back.budget, 300);
+  assert.deepEqual(back.items.map((g) => [g.name, g.price]), l.items.map((g) => [g.name, g.price]));
+  assert.equal(decodeShare(""), null);
+  assert.equal(decodeShare("#l=%7Bnot-json"), null);
+  assert.equal(decodeShare("#l=" + encodeURIComponent(JSON.stringify({ b: 5, i: [["x", -3], [5, 2]] }))), null);
+});

@@ -49,3 +49,29 @@ export function parseGiftList(raw: string | null): GiftList {
     return emptyList();
   }
 }
+
+/**
+ * Share link: the list is packed into the URL fragment (#l=...), which browsers never send to a
+ * server, so nothing is stored on SwiftScan's side. Only names, prices and the budget are included.
+ */
+export function encodeShare(list: GiftList): string {
+  const compact = { b: list.budget || 0, i: list.items.slice(0, MAX_GIFTS).map((g) => [g.name.slice(0, 80), g.price]) };
+  return `l=${encodeURIComponent(JSON.stringify(compact))}`;
+}
+
+export function decodeShare(fragment: string): GiftList | null {
+  try {
+    const m = /(?:^|[#&])l=([^&]+)/.exec(fragment);
+    if (!m) return null;
+    const v = JSON.parse(decodeURIComponent(m[1]));
+    if (!v || !Array.isArray(v.i)) return null;
+    const items: GiftItem[] = v.i
+      .filter((r: any) => Array.isArray(r) && typeof r[0] === 'string' && r[0].trim() && typeof r[1] === 'number' && r[1] > 0 && r[1] < 1e7)
+      .slice(0, MAX_GIFTS)
+      .map((r: any) => ({ name: String(r[0]).slice(0, 80), price: Math.round(r[1] * 100) / 100, t: 0 }));
+    if (!items.length) return null;
+    return { budget: typeof v.b === 'number' && v.b > 0 && v.b < 1e8 ? Math.round(v.b * 100) / 100 : 0, items };
+  } catch {
+    return null;
+  }
+}

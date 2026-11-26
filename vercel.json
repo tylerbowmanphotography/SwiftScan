@@ -1,6 +1,6 @@
 {
   "cleanUrls": true,
-  "rewrites": [{ "source": "/black-friday", "destination": "/" }, { "source": "/api/(.*)", "destination": "/api" }],
+  "rewrites": [{ "source": "/black-friday", "destination": "/" }, { "source": "/gifts", "destination": "/" }, { "source": "/api/(.*)", "destination": "/api" }],
   "functions": {
     "api/index.js": { "maxDuration": 60 }
   },
