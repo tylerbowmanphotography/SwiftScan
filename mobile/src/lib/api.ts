@@ -222,6 +222,10 @@ export async function setPriceAlert(productName: string, brand: string, targetPr
   return { ok: r.ok, signInRequired: r.status === 401, error: r.ok ? undefined : r.data?.error || 'Could not save the alert.' };
 }
 
+export async function registerPushToken(token: string): Promise<boolean> {
+  return (await post('/api/push/register', { token })).ok;
+}
+
 export async function removePriceAlert(productName: string) {
   await post('/api/alerts/remove', { productName });
 }

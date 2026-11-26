@@ -12,6 +12,7 @@ import { accountsEnabled, getAffiliateConfig, isUnlimitedEmail, proRecordActive,
 import { readSessionEmail } from "./auth";
 import { clean, hmac, safeEqual, appOrigin, hashShort, escapeHtml, sendEmail, normalizeEmail } from "./util";
 import { BRAND_BUTTON, BRAND_LINK } from "./brand";
+import { sendPush, type PushMessage } from "./push";
 
 export interface PriceEstimate {
   price: number;
@@ -135,11 +136,13 @@ export async function runAlertCheck(opts: {
   budgetMs?: number;
   concurrency?: number;
   send?: typeof sendEmail;
+  push?: (email: string, msg: PushMessage) => Promise<number>;
 }): Promise<CronSummary> {
   const s = getStore();
   const summary: CronSummary = { checked: 0, notified: 0, failed: 0, skipped: 0 };
   if (!s) return summary;
   const send = opts.send || sendEmail;
+  const push = opts.push || ((email: string, msg: PushMessage) => sendPush(email, msg));
   const started = Date.now();
   const budget = opts.budgetMs ?? 45_000;
   const max = opts.maxAlerts ?? 60;
@@ -173,6 +176,7 @@ export async function runAlertCheck(opts: {
           if (est.price <= alert.targetPrice) {
             if (!alert.notified) {
               await send({ to: email, ...buildAlertEmail(email, alert, est, opts.origin) });
+              await push(email, { title: `Price alert: ${alert.productName}`, body: `Looks to be around ${money(est.price)} (estimate), at or below your target of ${money(alert.targetPrice)}.`, data: { productName: alert.productName } });
               updated.notified = true;
               updated.notifiedAt = Date.now();
               summary.notified++;

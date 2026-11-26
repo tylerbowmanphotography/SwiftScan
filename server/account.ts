@@ -13,6 +13,7 @@ export async function deleteAccountData(email: string): Promise<void> {
   if (!s) throw new Error("No database configured");
   await endProForDeletedAccount(email);
   await s.del(`alerts:${email}`);
+  await s.del(`push:${email}`);
   await s.srem("alerts:index", email);
   await s.del(`items:${email}`);
   await s.del(`user:${email}`);
