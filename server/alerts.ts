@@ -193,6 +193,69 @@ export async function runAlertCheck(opts: {
 }
 
 // ---------------------------------------------------------------------------
+// Black Friday / Cyber Monday digest (one email per person who watches prices)
+// ---------------------------------------------------------------------------
+
+const ALL_ALERTS = "*";
+export type DigestKind = "blackfriday" | "cybermonday";
+
+export function buildDigestEmail(email: string, alerts: Alert[], origin: string, kind: DigestKind) {
+  const unsub = `${origin}/api/alerts/unsubscribe?t=${unsubToken(email, ALL_ALERTS)}`;
+  const day = kind === "blackfriday" ? "Black Friday" : "Cyber Monday";
+  const rows = alerts.slice(0, 25).map((a) => {
+    const last = typeof a.lastPrice === "number" && a.lastPrice > 0 ? a.lastPrice : null;
+    const status = last === null ? "not checked yet" : last <= a.targetPrice ? `around ${money(last)}, at or below your target` : `around ${money(last)}, ${money(last - a.targetPrice)} above your target`;
+    return { name: a.productName, target: a.targetPrice, status, link: amazonSearchUrl(a.productName) };
+  });
+  const subject = `${day}: your SwiftScan price watches`;
+  const hasTag = !!getAffiliateConfig().amazonTag;
+  const disclosure = hasTag ? "As an Amazon Associate I earn from qualifying purchases." : "";
+  const text = [
+    `Here is where the items you're watching stand for ${day}. Prices are AI/web-search estimates, not live store prices, so check the store before you buy.`,
+    "",
+    ...rows.map((r) => `- ${r.name}: ${r.status} (target ${money(r.target)}). Look it up: ${r.link}`),
+    "",
+    `Check a sale price any time: ${origin}/black-friday`,
+    disclosure,
+    "",
+    `You're getting this because you set price alerts in SwiftScan. Stop all alert emails: ${unsub}`,
+  ].filter((l, i, a) => l !== "" || a[i - 1] !== "").join("\n");
+  const html = `<div style="font-family:system-ui,sans-serif;max-width:480px;line-height:1.5">
+<h2 style="margin:0 0 8px">${escapeHtml(day)}: your price watches</h2>
+<p style="color:#555;font-size:13px">Prices are AI/web-search estimates, not live store prices. Check the store before you buy.</p>
+<ul style="padding-left:18px">${rows.map((r) => `<li><strong>${escapeHtml(r.name)}</strong>: ${escapeHtml(r.status)} (target ${money(r.target)}). <a href="${escapeHtml(r.link)}" style="color:${BRAND_LINK}">Look it up</a></li>`).join("")}</ul>
+<p><a href="${escapeHtml(origin)}/black-friday" style="display:inline-block;background:${BRAND_BUTTON};color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:700">Is this deal real?</a></p>
+${disclosure ? `<p style="color:#777;font-size:12px">${disclosure}</p>` : ""}
+<p style="color:#777;font-size:12px">You're getting this because you set price alerts in SwiftScan. <a href="${escapeHtml(unsub)}" style="color:${BRAND_LINK}">Stop all alert emails</a></p>
+</div>`;
+  return { subject, text, html };
+}
+
+/** Dry run by default: counts recipients and returns a sample. Only sends when `send` is true. */
+export async function runDigest(opts: { origin: string; kind: DigestKind; send: boolean; sender?: typeof sendEmail }) {
+  const s = getStore();
+  const out = { recipients: 0, sent: 0, failed: 0, sample: null as null | { subject: string; text: string } };
+  if (!s) return out;
+  const sender = opts.sender || sendEmail;
+  for (const email of await s.smembers(INDEX_KEY)) {
+    const list = await listAlerts(email);
+    if (!list.length) continue;
+    out.recipients++;
+    const mail = buildDigestEmail(email, list, opts.origin, opts.kind);
+    if (!out.sample) out.sample = { subject: mail.subject, text: mail.text.replace(email, "you@example.com") };
+    if (!opts.send) continue;
+    try {
+      await sender({ to: email, ...mail });
+      out.sent++;
+    } catch (err: any) {
+      out.failed++;
+      console.warn("Digest send failed:", err?.message || err);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
 
@@ -336,7 +399,7 @@ export function registerAlertRoutes(app: Express, estimate: PriceEstimator) {
     if (!readUnsubToken(token)) {
       return res.status(400).send(page("That link isn't valid", "This stop-alert link is invalid or expired. You can remove alerts inside SwiftScan."));
     }
-    return res.send(page("Stop this price alert?", "", `<form method="POST" action="/api/alerts/unsubscribe"><input type="hidden" name="t" value="${escapeHtml(token)}"><button style="padding:10px 16px;border-radius:10px;border:0;background:${BRAND_BUTTON};color:#fff;font-weight:700">Stop alert</button></form>`));
+    return res.send(page(readUnsubToken(token)!.id === ALL_ALERTS ? "Stop all price alert emails?" : "Stop this price alert?", "", `<form method="POST" action="/api/alerts/unsubscribe"><input type="hidden" name="t" value="${escapeHtml(token)}"><button style="padding:10px 16px;border-radius:10px;border:0;background:${BRAND_BUTTON};color:#fff;font-weight:700">Stop alert</button></form>`));
   });
 
   app.post(["/api/alerts/unsubscribe", "/api/alerts/unsubscribe/"], async (req, res) => {
@@ -346,6 +409,10 @@ export function registerAlertRoutes(app: Express, estimate: PriceEstimator) {
       return res.status(400).send(page("That link isn't valid", "This stop-alert link is invalid or expired. You can remove alerts inside SwiftScan."));
     }
     try {
+      if (t.id === ALL_ALERTS) {
+        for (const a of await listAlerts(t.email)) await removeAlert(t.email, a.id);
+        return res.send(page("Alerts stopped", "You won't get price alert or deal digest emails from SwiftScan anymore."));
+      }
       await removeAlert(t.email, t.id);
       return res.send(page("Alert stopped", "You won't get emails for that price alert anymore."));
     } catch {
@@ -354,6 +421,24 @@ export function registerAlertRoutes(app: Express, estimate: PriceEstimator) {
   });
 
   // ---- cron ----
+
+  // Black Friday / Cyber Monday digest. Dry run unless ?send=1 AND BF_DIGEST_ENABLED=1; never scheduled.
+  app.get(["/api/cron/bf-digest", "/api/cron/bf-digest/"], async (req, res) => {
+    const cronSecret = clean(process.env.CRON_SECRET);
+    if (!cronSecret) return res.status(503).json({ success: false, error: "CRON_SECRET is not configured." });
+    if (!safeEqual(String(req.headers.authorization || ""), `Bearer ${cronSecret}`)) return res.status(401).json({ success: false, error: "Unauthorized." });
+    if (!getStore()) return res.status(503).json({ success: false, error: "Database not configured." });
+    const kind: DigestKind = req.query.kind === "cybermonday" ? "cybermonday" : "blackfriday";
+    const wantSend = req.query.send === "1";
+    const enabled = clean(process.env.BF_DIGEST_ENABLED) === "1";
+    try {
+      const result = await runDigest({ origin: appOrigin(req), kind, send: wantSend && enabled });
+      res.json({ success: true, kind, dryRun: !(wantSend && enabled), sendBlocked: wantSend && !enabled ? "Set BF_DIGEST_ENABLED=1 to allow sending." : undefined, ...result });
+    } catch (err: any) {
+      console.warn("Digest error:", err?.message || err);
+      res.status(500).json({ success: false, error: "Digest failed." });
+    }
+  });
   app.get(["/api/cron/check-alerts", "/api/cron/check-alerts/"], async (req, res) => {
     const cronSecret = clean(process.env.CRON_SECRET);
     if (!cronSecret) return res.status(503).json({ success: false, error: "CRON_SECRET is not configured." });
