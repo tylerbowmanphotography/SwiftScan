@@ -38,6 +38,8 @@ let sessionOwner = "pat@example.com";
 
 // ---- mocked Resend (everything else goes to the real fetch, i.e. our local server) ----
 const sent: { to: string[]; subject: string; text: string }[] = [];
+const pushSent: any[] = [];
+let pushResult: any = null;
 let resendFails = false;
 const realFetch = globalThis.fetch;
 globalThis.fetch = (async (url: any, init?: any) => {
@@ -45,6 +47,11 @@ globalThis.fetch = (async (url: any, init?: any) => {
     if (resendFails) return new Response("boom", { status: 500 });
     sent.push(JSON.parse(init.body));
     return new Response(JSON.stringify({ id: "em_1" }), { status: 200 });
+  }
+  if (String(url).startsWith("https://exp.host/--/api/v2/push/send")) {
+    const msgs = JSON.parse(init.body);
+    pushSent.push(...msgs);
+    return new Response(JSON.stringify(pushResult || { data: msgs.map(() => ({ status: "ok" })) }), { status: 200 });
   }
   return realFetch(url, init);
 }) as any;
@@ -660,4 +667,37 @@ test("weekly drops: baseline is set by the check, drops need 5+ days and 5%, dry
   } finally {
     delete process.env.WEEKLY_DROPS_ENABLED;
   }
+});
+
+
+test("push: register needs sign-in and a valid token; alert hit sends a push; dead tokens are removed", async () => {
+  const db = new MemoryStore();
+  setStoreForTests(db);
+  const c = new Client();
+  const good = "ExponentPushToken[abcdefghijklmnop1234]";
+  assert.equal((await c.post("/api/push/register", { token: good })).status, 401);
+  await signIn(c, "pushy@example.com");
+  assert.equal((await c.post("/api/push/register", { token: "nope" })).status, 400);
+  assert.equal((await c.post("/api/push/register", { token: good })).status, 200);
+  assert.deepEqual(Object.keys(await db.hgetall("push:pushy@example.com")), [good]);
+
+  assert.equal((await c.put("/api/alerts", { productName: "Gizmo", targetPrice: 50 })).status, 200);
+  pushSent.length = 0;
+  sent.length = 0;
+  await alertsMod.runAlertCheck({ estimate: async () => ({ price: 40 }), origin: "https://x.test" });
+  assert.equal(sent.length, 1); // email still goes out
+  assert.equal(pushSent.length, 1);
+  assert.equal(pushSent[0].to, good);
+  assert.match(pushSent[0].title, /Gizmo/);
+
+  pushResult = { data: [{ status: "error", details: { error: "DeviceNotRegistered" } }] };
+  try {
+    const { sendPush } = await import("../server/push");
+    assert.equal(await sendPush("pushy@example.com", { title: "t", body: "b" }), 0);
+    assert.deepEqual(await db.hgetall("push:pushy@example.com"), {});
+  } finally {
+    pushResult = null;
+  }
+
+  assert.equal((await c.post("/api/account/delete", { confirm: true })).status, 200);
 });

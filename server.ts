@@ -6,6 +6,7 @@ import { registerMonetizationRoutes, scanQuota } from "./server/monetization";
 import { registerAuthRoutes } from "./server/auth";
 import { registerAccountRoutes } from "./server/account";
 import { registerAlertRoutes, type PriceEstimate } from "./server/alerts";
+import { registerPushRoutes } from "./server/push";
 import { getStore } from "./server/db";
 import { hashShort } from "./server/util";
 import {
@@ -590,6 +591,7 @@ These are estimates. If you cannot find a credible price, return {"lowestPrice":
 
 // Saved-item sync, price alerts, and the daily alert cron
 registerAlertRoutes(app, estimateCurrentPrice);
+registerPushRoutes(app);
 
 // Main Product Scan API endpoint
 app.post(["/api/scan", "/api/scan/"], scanQuota, async (req, res) => {

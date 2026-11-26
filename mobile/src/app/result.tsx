@@ -13,6 +13,7 @@ import { SaleCheck } from '../components/SaleCheck';
 import { Card, Pill, PrimaryButton, SecondaryButton, SectionTitle } from '../components/ui';
 import { getAffiliateConfig, getAffiliateUrl, hasAffiliateIds } from '../lib/affiliate';
 import * as api from '../lib/api';
+import { enablePushAlerts } from '../lib/push';
 import { useApp } from '../lib/store';
 import { colors, money, radius, ratingStyle } from '../lib/theme';
 import type { ProductScanResult } from '../lib/types';
@@ -285,7 +286,11 @@ function PriceAlert({ r, signedIn }: { r: ProductScanResult; signedIn: boolean }
     setSaving(true);
     const res = await api.setPriceAlert(r.productName, r.brand, n);
     setSaving(false);
-    if (res.ok) setSaved(true);
+    if (res.ok) {
+      setSaved(true);
+      // Ask for notification permission now that they have a reason; email alerts work either way.
+      enablePushAlerts();
+    }
     else if (res.signInRequired) router.push('/account');
     else Alert.alert("Couldn't save alert", res.error);
   };
@@ -296,7 +301,7 @@ function PriceAlert({ r, signedIn }: { r: ProductScanResult; signedIn: boolean }
       {saved ? (
         <View style={styles.bullet}>
           <Ionicons name="notifications" size={18} color={colors.pink400} />
-          <Text style={styles.bulletText}>We’ll email you when it looks like it hits {money(Number(target))}.</Text>
+          <Text style={styles.bulletText}>We’ll email you, and send a notification if you allow them, when it looks like it hits {money(Number(target))}.</Text>
         </View>
       ) : signedIn ? (
         <>
