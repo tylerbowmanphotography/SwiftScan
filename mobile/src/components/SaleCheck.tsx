@@ -1,10 +1,15 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { checkSale, type SaleVerdict } from '../lib/saleCheck';
+import { parseEntries, recordEntry, summarize, type SaleEntry } from '../lib/savings';
 import { colors, radius } from '../lib/theme';
 import type { ProductScanResult } from '../lib/types';
 import { Card, SectionTitle } from './ui';
+
+const STORE_KEY = 'ss_sale_checks';
+const fmt = (n: number) => (n >= 100 ? `$${Math.round(n)}` : `$${n.toFixed(2)}`);
 
 const toNumber = (s: string) => {
   const n = parseFloat(s.replace(/[^0-9.]/g, ''));
@@ -37,6 +42,28 @@ export function SaleCheck({ r }: { r: ProductScanResult }) {
     [tag, was, r],
   );
   const tone = outcome ? TONE[outcome.verdict] : null;
+
+  const [entries, setEntries] = useState<SaleEntry[]>([]);
+  useEffect(() => {
+    AsyncStorage.getItem(STORE_KEY)
+      .then((raw) => setEntries(parseEntries(raw)))
+      .catch(() => {});
+  }, []);
+  const typical = r.historicalPriceRange?.averagePrice || r.msrp || r.goodPrice || 0;
+  const tagValue = toNumber(tag);
+  // Remember the tag price once the shopper stops typing.
+  useEffect(() => {
+    if (!outcome || !(tagValue > 0)) return;
+    const id = setTimeout(() => {
+      setEntries((prev) => {
+        const next = recordEntry(prev, { name: r.productName, tag: tagValue, typical, t: Date.now() });
+        AsyncStorage.setItem(STORE_KEY, JSON.stringify(next)).catch(() => {});
+        return next;
+      });
+    }, 1500);
+    return () => clearTimeout(id);
+  }, [tagValue, typical, r.productName, outcome]);
+  const tally = useMemo(() => summarize(entries), [entries]);
   const good = outcome && (outcome.verdict === 'GREAT' || outcome.verdict === 'GOOD');
 
   return (
@@ -62,6 +89,13 @@ export function SaleCheck({ r }: { r: ProductScanResult }) {
           <Text style={styles.detail}>{outcome.detail}</Text>
           <Text style={styles.hint}>{"Based on SwiftScan's price estimates, which can be off. Not a claim about the store."}</Text>
         </View>
+      ) : null}
+      {tally.items > 0 ? (
+        <Text style={styles.hint}>
+          {`Your tally: ${tally.items} price${tally.items === 1 ? '' : 's'} checked${
+            tally.below > 0 ? `, ${tally.below} below SwiftScan's typical price (${fmt(tally.spotted)} in total)` : ''
+          }. Prices spotted, not money saved.`}
+        </Text>
       ) : null}
     </Card>
   );
