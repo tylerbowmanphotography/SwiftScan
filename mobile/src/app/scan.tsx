@@ -4,12 +4,11 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '../components/ui';
 import { prepareForScan } from '../lib/image';
-import { donateToSiri } from '../lib/siri';
 import { colors } from '../lib/theme';
 import { useRunScan } from '../lib/useRunScan';
 
@@ -23,7 +22,6 @@ export default function ScanScreen() {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   // Opening the scanner teaches Siri to suggest "Scan a Price" (Lock Screen, Spotlight, Siri AI).
-  useEffect(() => donateToSiri('openScanner'), []);
   const camera = useRef<CameraView>(null);
   const locked = useRef(false);
   // Last barcode that wasn't found; sent with the next photo so the server can learn it.

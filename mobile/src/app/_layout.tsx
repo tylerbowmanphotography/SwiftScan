@@ -2,7 +2,6 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { IapProvider } from '../lib/iap';
-import { SiriBridge } from '../lib/siri';
 import { AppProvider } from '../lib/store';
 import { colors } from '../lib/theme';
 
@@ -30,7 +29,6 @@ export default function RootLayout() {
           <Stack.Screen name="account" options={{ title: 'Account', presentation: 'modal' }} />
           <Stack.Screen name="pro" options={{ title: 'SwiftScan Pro', presentation: 'modal' }} />
         </Stack>
-        <SiriBridge />
         </IapProvider>
       </AppProvider>
     </SafeAreaProvider>
