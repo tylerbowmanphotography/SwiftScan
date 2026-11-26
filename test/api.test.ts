@@ -587,3 +587,37 @@ test("usage stats: counts opens and scans per platform; owner-only endpoint", as
   assert.equal(r.json.days.length, 3);
   assert.ok(r.json.days[0].web.visitors >= 3, JSON.stringify(r.json.days[0]));
 });
+
+
+test("bf digest: dry run by default, sends only with send=1 and BF_DIGEST_ENABLED, stop-all link removes alerts", async () => {
+  const db = new MemoryStore();
+  setStoreForTests(db);
+  const c = new Client();
+  await signIn(c, "digest@example.com");
+  assert.equal((await c.put("/api/alerts", { productName: "Widget", targetPrice: 20 })).status, 200);
+  const auth = { authorization: "Bearer cron_test_secret" };
+  assert.equal((await c.get("/api/cron/bf-digest")).status, 401);
+  sent.length = 0;
+  let r = await c.get("/api/cron/bf-digest", auth);
+  assert.equal(r.json.dryRun, true);
+  assert.equal(r.json.recipients, 1);
+  assert.equal(sent.length, 0);
+  r = await c.get("/api/cron/bf-digest?send=1", auth);
+  assert.equal(r.json.dryRun, true);
+  assert.ok(r.json.sendBlocked);
+  assert.equal(sent.length, 0);
+  process.env.BF_DIGEST_ENABLED = "1";
+  try {
+    r = await c.get("/api/cron/bf-digest?send=1&kind=cybermonday", auth);
+    assert.equal(r.json.sent, 1);
+    assert.equal(sent.length, 1);
+    assert.match(sent[0].subject, /Cyber Monday/);
+    const link = sent[0].text.match(/Stop all alert emails: (\S+)/)![1];
+    const token = new URL(link).searchParams.get("t")!;
+    const stop = await c.post("/api/alerts/unsubscribe", { t: token });
+    assert.equal(stop.status, 200);
+    assert.deepEqual(await db.hgetall("alerts:digest@example.com"), {});
+  } finally {
+    delete process.env.BF_DIGEST_ENABLED;
+  }
+});
