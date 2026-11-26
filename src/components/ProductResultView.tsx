@@ -44,6 +44,7 @@ import { findCoupons } from '../utils/api';
 import { ReportIncorrectScanModal } from './ReportIncorrectScanModal';
 import { AdBanner } from './AdBanner';
 import { SaleCheckCard } from './SaleCheckCard';
+import { GiftListCard } from './GiftListCard';
 
 interface ProductResultViewProps {
   result: ProductScanResult;
@@ -559,6 +560,7 @@ Summary: ${result.summary}`;
       </div>
 
       <SaleCheckCard result={result} onWatchPrice={onWatchPrice} prefill={salePrefill} onPrefillUsed={onSalePrefillUsed} />
+      <GiftListCard result={result} />
 
       {/* NAVIGATION TABS FOR DETAILED SECTIONS */}
       <div className="flex items-center p-1.5 bg-slate-200/70 dark:bg-white/[0.06] rounded-2xl gap-1 overflow-x-auto scrollbar-none sticky top-[4.25rem] z-20 backdrop-blur">
