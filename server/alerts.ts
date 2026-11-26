@@ -13,6 +13,7 @@ import { readSessionEmail } from "./auth";
 import { clean, hmac, safeEqual, appOrigin, hashShort, escapeHtml, sendEmail, normalizeEmail } from "./util";
 import { BRAND_BUTTON, BRAND_LINK } from "./brand";
 import { sendPush, type PushMessage } from "./push";
+import type { Coupon } from "./coupons";
 
 export interface PriceEstimate {
   price: number;
@@ -33,6 +34,8 @@ export interface Alert {
   notifiedAt?: number;
   /** Price at the start of the current week, used by the weekly price-drop email */
   baseline?: { price: number; t: number };
+  /** Coupons already emailed for this item (key = store|code-or-title), so each one is sent once */
+  couponsSeen?: string[];
 }
 
 const INDEX_KEY = "alerts:index";
@@ -345,6 +348,86 @@ export async function runWeeklyDrops(opts: { origin: string; send: boolean; send
 }
 
 // ---------------------------------------------------------------------------
+// Weekly coupon alerts: new coupons found for items the user is watching
+// ---------------------------------------------------------------------------
+
+export type CouponFinder = (productName: string, brand?: string) => Promise<Coupon[]>;
+export const couponKey = (c: Coupon) => `${c.store}|${c.code || c.title}`.toLowerCase().slice(0, 120);
+const MAX_COUPONS_PER_ITEM = 3;
+const MAX_SEEN = 40;
+
+export function newCoupons(alert: Alert, found: Coupon[]): Coupon[] {
+  const seen = new Set(alert.couponsSeen || []);
+  return found.filter((c) => !seen.has(couponKey(c))).slice(0, MAX_COUPONS_PER_ITEM);
+}
+
+export function buildCouponsEmail(email: string, items: { alert: Alert; coupons: Coupon[] }[], origin: string) {
+  const unsub = `${origin}/api/alerts/unsubscribe?t=${unsubToken(email, ALL_ALERTS)}`;
+  const n = items.length;
+  const subject = `New coupons for ${n} item${n === 1 ? "" : "s"} you're watching`;
+  const lines = (c: Coupon) => `${c.title}${c.code ? ` (code ${c.code})` : ""} at ${c.store}${c.expires ? `, ends ${c.expires}` : ""}`;
+  const text = [
+    "SwiftScan found these coupons on the web for items you're watching. They are not guaranteed, so check the terms at the store before you buy.",
+    "",
+    ...items.flatMap((i) => [i.alert.productName, ...i.coupons.map((c) => `- ${lines(c)}. ${c.sourceUrl}`), ""]),
+    `You're getting this because you set price alerts in SwiftScan. Stop all alert emails: ${unsub}`,
+  ].join("\n");
+  const html = `<div style="font-family:system-ui,sans-serif;max-width:480px;line-height:1.5">
+<h2 style="margin:0 0 8px">New coupons</h2>
+<p style="color:#555;font-size:13px">Found on the web for items you're watching. Not guaranteed. Check the terms at the store before you buy.</p>
+${items.map((i) => `<p style="margin:12px 0 4px"><strong>${escapeHtml(i.alert.productName)}</strong></p><ul style="padding-left:18px;margin:0">${i.coupons.map((c) => `<li>${escapeHtml(lines(c))}. <a href="${escapeHtml(c.sourceUrl)}" style="color:${BRAND_LINK}">View deal</a></li>`).join("")}</ul>`).join("")}
+<p style="color:#777;font-size:12px">You're getting this because you set price alerts in SwiftScan. <a href="${escapeHtml(unsub)}" style="color:${BRAND_LINK}">Stop all alert emails</a></p>
+</div>`;
+  return { subject, text, html };
+}
+
+/**
+ * Dry run by default. Each distinct watched item costs one coupon search (cached for a day), so a
+ * run searches at most `maxSearches` items; items left over are picked up by the next run.
+ * When sending, emailed coupons are remembered so they are never sent twice.
+ */
+export async function runCouponAlerts(opts: { origin: string; send: boolean; finder: CouponFinder; maxSearches?: number; sender?: typeof sendEmail }) {
+  const s = getStore();
+  const out = { searched: 0, recipients: 0, sent: 0, failed: 0, sample: null as null | { subject: string; text: string } };
+  if (!s) return out;
+  const sender = opts.sender || sendEmail;
+  const max = opts.maxSearches ?? intEnv("COUPON_ALERTS_MAX", 20);
+  const found = new Map<string, Coupon[]>();
+  for (const email of await s.smembers(INDEX_KEY)) {
+    const list = await listAlerts(email);
+    const items: { alert: Alert; coupons: Coupon[] }[] = [];
+    for (const a of list) {
+      let coupons = found.get(a.id);
+      if (!coupons) {
+        if (out.searched >= max) continue;
+        out.searched++;
+        coupons = await opts.finder(a.productName, a.brand).catch(() => []);
+        found.set(a.id, coupons);
+      }
+      const fresh = newCoupons(a, coupons);
+      if (fresh.length) items.push({ alert: a, coupons: fresh });
+    }
+    if (!items.length) continue;
+    out.recipients++;
+    const mail = buildCouponsEmail(email, items, opts.origin);
+    if (!out.sample) out.sample = { subject: mail.subject, text: mail.text.replace(email, "you@example.com") };
+    if (!opts.send) continue;
+    try {
+      await sender({ to: email, ...mail });
+      out.sent++;
+      for (const i of items) {
+        const seen = [...(i.alert.couponsSeen || []), ...i.coupons.map(couponKey)].slice(-MAX_SEEN);
+        await s.hset(alertsKey(email), i.alert.id, { ...i.alert, couponsSeen: seen });
+      }
+    } catch (err: any) {
+      out.failed++;
+      console.warn("Coupon alert send failed:", err?.message || err);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
 
@@ -379,7 +462,7 @@ function sanitizeItems(raw: any): any[] | null {
   return items;
 }
 
-export function registerAlertRoutes(app: Express, estimate: PriceEstimator) {
+export function registerAlertRoutes(app: Express, estimate: PriceEstimator, findCoupons?: CouponFinder) {
   // ---- saved items sync ----
   app.get(["/api/items", "/api/items/"], async (req, res) => {
     const email = requireUser(req, res);
@@ -511,6 +594,24 @@ export function registerAlertRoutes(app: Express, estimate: PriceEstimator) {
   });
 
   // ---- cron ----
+
+  // Weekly coupon alerts. Dry run unless ?send=1 AND COUPON_ALERTS_ENABLED=1; never scheduled.
+  app.get(["/api/cron/coupon-alerts", "/api/cron/coupon-alerts/"], async (req, res) => {
+    const cronSecret = clean(process.env.CRON_SECRET);
+    if (!cronSecret) return res.status(503).json({ success: false, error: "CRON_SECRET is not configured." });
+    if (!safeEqual(String(req.headers.authorization || ""), `Bearer ${cronSecret}`)) return res.status(401).json({ success: false, error: "Unauthorized." });
+    if (!getStore()) return res.status(503).json({ success: false, error: "Database not configured." });
+    if (!findCoupons) return res.status(503).json({ success: false, error: "Coupon search is not available." });
+    const wantSend = req.query.send === "1";
+    const enabled = clean(process.env.COUPON_ALERTS_ENABLED) === "1";
+    try {
+      const result = await runCouponAlerts({ origin: appOrigin(req), send: wantSend && enabled, finder: findCoupons });
+      res.json({ success: true, dryRun: !(wantSend && enabled), sendBlocked: wantSend && !enabled ? "Set COUPON_ALERTS_ENABLED=1 to allow sending." : undefined, ...result });
+    } catch (err: any) {
+      console.warn("Coupon alerts error:", err?.message || err);
+      res.status(500).json({ success: false, error: "Coupon alerts failed." });
+    }
+  });
 
   // Weekly price-drop email. Dry run unless ?send=1 AND WEEKLY_DROPS_ENABLED=1; never scheduled.
   app.get(["/api/cron/weekly-drops", "/api/cron/weekly-drops/"], async (req, res) => {
