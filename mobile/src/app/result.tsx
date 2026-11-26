@@ -8,6 +8,7 @@ import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, Share, StyleS
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BuyTiming } from '../components/BuyTiming';
 import { GiftList } from '../components/GiftList';
+import { Purchases } from '../components/Purchases';
 import { SaleCheck } from '../components/SaleCheck';
 import { Card, Pill, PrimaryButton, SecondaryButton, SectionTitle } from '../components/ui';
 import { getAffiliateConfig, getAffiliateUrl, hasAffiliateIds } from '../lib/affiliate';
@@ -114,6 +115,7 @@ export default function ResultScreen() {
         <SaleCheck r={r} />
         <BuyTiming r={r} />
         <GiftList r={r} />
+        <Purchases r={r} />
         <PriceComparison r={r} />
         <Coupons r={r} />
         <PriceHistory r={r} />
