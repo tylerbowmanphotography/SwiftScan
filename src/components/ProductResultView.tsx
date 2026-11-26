@@ -55,6 +55,8 @@ interface ProductResultViewProps {
   onOpenSearch?: () => void;
   /** Set when email alerts are available: one-tap alert at the great-deal price. */
   onWatchPrice?: () => void;
+  salePrefill?: { tag: string; was: string } | null;
+  onSalePrefillUsed?: () => void;
 }
 
 export const ProductResultView: React.FC<ProductResultViewProps> = ({
@@ -66,6 +68,8 @@ export const ProductResultView: React.FC<ProductResultViewProps> = ({
   onCorrectScan,
   onOpenSearch,
   onWatchPrice,
+  salePrefill,
+  onSalePrefillUsed,
 }) => {
   const [copied, setCopied] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -554,7 +558,7 @@ Summary: ${result.summary}`;
         ) : null}
       </div>
 
-      <SaleCheckCard result={result} onWatchPrice={onWatchPrice} />
+      <SaleCheckCard result={result} onWatchPrice={onWatchPrice} prefill={salePrefill} onPrefillUsed={onSalePrefillUsed} />
 
       {/* NAVIGATION TABS FOR DETAILED SECTIONS */}
       <div className="flex items-center p-1.5 bg-slate-200/70 dark:bg-white/[0.06] rounded-2xl gap-1 overflow-x-auto scrollbar-none sticky top-[4.25rem] z-20 backdrop-blur">

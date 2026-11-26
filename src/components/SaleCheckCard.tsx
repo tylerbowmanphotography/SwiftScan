@@ -28,10 +28,14 @@ const TONE: Record<SaleVerdict, string> = {
 };
 
 /** "Is this sale real?": type the price on the tag (and the crossed-out price) to compare with SwiftScan's estimate. */
-export function SaleCheckCard({ result, onWatchPrice }: { result: ProductScanResult; onWatchPrice?: () => void }) {
+export function SaleCheckCard({ result, onWatchPrice, prefill, onPrefillUsed }: { result: ProductScanResult; onWatchPrice?: () => void; prefill?: { tag: string; was: string } | null; onPrefillUsed?: () => void }) {
   const [shared, setShared] = useState(false);
-  const [tag, setTag] = useState('');
-  const [was, setWas] = useState('');
+  const [tag, setTag] = useState(prefill?.tag || '');
+  const [was, setWas] = useState(prefill?.was || '');
+  useEffect(() => {
+    if (prefill) onPrefillUsed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const outcome = useMemo(
     () =>
       checkSale({

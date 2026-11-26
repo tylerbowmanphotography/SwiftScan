@@ -2,10 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card, PrimaryButton, SecondaryButton } from '../components/ui';
 import { SITE_URL } from '../lib/api';
+import { BF_PROMO, isPromoActive } from '../lib/blackFriday';
 import { useIap } from '../lib/iap';
 import { useApp } from '../lib/store';
 import { colors } from '../lib/theme';
@@ -34,6 +35,16 @@ export default function ProScreen() {
         <Text style={styles.heroTitle}>SwiftScan Pro</Text>
         <Text style={styles.heroBody}>Check every price you want, as often as you want.</Text>
       </LinearGradient>
+
+      {!isPro && isPromoActive() ? (
+        <Card style={{ gap: 10 }}>
+          <Text style={{ color: colors.pink600, fontWeight: '800', fontSize: 15 }}>Black Friday offer</Text>
+          <Text style={styles.muted}>
+            {`New and returning subscribers: ${BF_PROMO.price} for the first month with code ${BF_PROMO.code} (then the regular price). Ends Dec 1.`}
+          </Text>
+          <SecondaryButton title={`Redeem ${BF_PROMO.code}`} onPress={() => Linking.openURL(BF_PROMO.url)} />
+        </Card>
+      ) : null}
 
       <Card style={{ gap: 16 }}>
         {PERKS.map((p) => (
