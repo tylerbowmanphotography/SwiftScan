@@ -13,3 +13,12 @@ test("banner window runs Monday of Black Friday week through Cyber Monday", () =
   assert.equal(isBlackFridayWeek(new Date(2026, 10, 30, 22)), true);
   assert.equal(isBlackFridayWeek(new Date(2026, 11, 1, 0, 1)), false);
 });
+
+import { isPromoActive, BF_PROMO } from '../src/utils/blackFriday';
+test('promo runs Nov 25 through Dec 1, 2026 only', () => {
+  assert.equal(isPromoActive(new Date(2026, 10, 24, 23, 59)), false);
+  assert.equal(isPromoActive(new Date(2026, 10, 25, 0, 0)), true);
+  assert.equal(isPromoActive(new Date(2026, 11, 1, 23, 59)), true);
+  assert.equal(isPromoActive(new Date(2026, 11, 2, 0, 0)), false);
+  assert.match(BF_PROMO.url, /code=BLACKFRIDAY50$/);
+});

@@ -18,3 +18,16 @@ export function cyberMondayLabel(year: number = new Date().getFullYear()): strin
   const bf = blackFridayDate(year);
   return new Date(bf.getFullYear(), bf.getMonth(), bf.getDate() + 3).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
+
+/** Apple offer code for SwiftScan Pro Monthly: $2.49 for the first month. Created in App Store Connect; expires Dec 1, 2026. */
+export const BF_PROMO = {
+  code: 'BLACKFRIDAY50',
+  year: 2026,
+  url: 'https://apps.apple.com/redeem?ctx=offercodes&id=6823987573&code=BLACKFRIDAY50',
+  price: '$2.49',
+} as const;
+
+/** True from Nov 25 through the end of Dec 1 (the offer code's last day). */
+export function isPromoActive(now: Date = new Date()): boolean {
+  return now >= new Date(BF_PROMO.year, 10, 25) && now < new Date(BF_PROMO.year, 11, 2);
+}

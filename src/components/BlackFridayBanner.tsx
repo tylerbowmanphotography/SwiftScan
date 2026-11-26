@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Tag, X } from 'lucide-react';
-import { cyberMondayLabel, isBlackFridayWeek } from '../utils/blackFriday';
+import { BF_PROMO, cyberMondayLabel, isBlackFridayWeek, isPromoActive } from '../utils/blackFriday';
 
 const DISMISS_KEY = 'ss_bf_banner_dismissed';
 const year = () => new Date().getFullYear();
 
 /** Black Friday week only. Points shoppers at the sale check and the price alerts. */
-export function BlackFridayBanner({ onSearch, onScan, promoCode }: { onSearch: () => void; onScan: () => void; promoCode?: string }) {
+export function BlackFridayBanner({ onSearch, onScan }: { onSearch: () => void; onScan: () => void }) {
   const [hidden, setHidden] = useState(() => {
     try {
       return localStorage.getItem(DISMISS_KEY) === String(year());
@@ -34,9 +34,15 @@ export function BlackFridayBanner({ onSearch, onScan, promoCode }: { onSearch: (
           <h2 className="text-base font-extrabold">Black Friday? Check the deal before you buy.</h2>
           <p className="text-sm text-slate-700 dark:text-slate-300 leading-snug">
             Scan an item or search its name, then type the tag price under "Is this sale real?". SwiftScan compares the sale, and the crossed-out "was" price, with its own estimate. Tap "Watch" to get an email if the price drops by Cyber Monday ({cyberMondayLabel(year())}).
-            {promoCode ? ` SwiftScan Pro is on sale this weekend with code ${promoCode}.` : ''}
           </p>
+          {isPromoActive() ? (
+            <p className="text-sm text-slate-700 dark:text-slate-300 leading-snug">
+              On iPhone, SwiftScan Pro is {BF_PROMO.price} for the first month with code <b>{BF_PROMO.code}</b> until Dec 1.{' '}
+              <a href={BF_PROMO.url} className="font-bold text-pink-700 dark:text-pink-300 underline">Redeem on the App Store</a>
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-2">
+            <a href="/black-friday" className="rounded-xl border border-pink-300 dark:border-pink-800 px-4 py-2 text-xs font-bold text-pink-700 dark:text-pink-300">Is this deal real?</a>
             <button onClick={onScan} className="rounded-xl bg-pink-600 px-4 py-2 text-xs font-bold text-white hover:bg-pink-700">Scan an item</button>
             <button onClick={onSearch} className="rounded-xl border border-pink-300 dark:border-pink-800 px-4 py-2 text-xs font-bold text-pink-700 dark:text-pink-300">Search by name</button>
           </div>
