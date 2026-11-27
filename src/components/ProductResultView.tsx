@@ -1,5 +1,5 @@
 import { getAffiliateUrl, getAffiliateConfig, hasAffiliateIds, isAmazonLink } from '../utils/affiliate';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Star,
   CheckCircle2,
@@ -40,7 +40,7 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { ProductScanResult, ProductQAMessage, CouponSearch } from '../types';
-import { findCoupons } from '../utils/api';
+import { findCoupons, findRating, type ProductRating } from '../utils/api';
 import { ReportIncorrectScanModal } from './ReportIncorrectScanModal';
 import { AdBanner } from './AdBanner';
 import { SaleCheckCard } from './SaleCheckCard';
@@ -111,6 +111,18 @@ export const ProductResultView: React.FC<ProductResultViewProps> = ({
       setIsFetchingStores(false);
     }
   };
+
+  // Real star rating from the web (never invented); looked up once per product, cached on the server.
+  const [webRating, setWebRating] = useState<ProductRating | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    findRating(result.productName, result.brand).then((r) => {
+      if (!cancelled) setWebRating(r);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [result.productName, result.brand]);
 
   // Coupons State (searched on demand when the Coupons tab is opened)
   const [couponSearch, setCouponSearch] = useState<CouponSearch | null>(null);
@@ -354,7 +366,22 @@ Summary: ${result.summary}`;
               {result.productName}
             </h1>
 
-            {/* Rating row: only shown when backed by a real source (none yet), never invented */}
+            {webRating && (
+              <a
+                href={webRating.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 pt-1 text-xs text-slate-500 dark:text-slate-400"
+                title={`Rating found on ${webRating.source}`}
+              >
+                <Star size={16} className="fill-current text-amber-400" />
+                <span className="text-sm font-bold text-slate-900 dark:text-white ml-1">{webRating.rating.toFixed(1)} / 5.0</span>
+                {webRating.reviewCount ? <span>({webRating.reviewCount.toLocaleString()} reviews)</span> : null}
+                <span>· via {webRating.source}</span>
+              </a>
+            )}
+
+            {/* Rating row: only shown when backed by a real source, never invented */}
             {(hasRating || result.reviewSentiment) && (
               <div className="flex items-center gap-3 pt-1">
                 {hasRating && (

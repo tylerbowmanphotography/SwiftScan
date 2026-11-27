@@ -479,6 +479,14 @@ test("deals: only listed stores; without search grounding returns links only", a
   assert.deepEqual(r.json.coupons, []);
 });
 
+test("rating: needs a product name; without search grounding returns no rating", async () => {
+  const c = new Client();
+  assert.equal((await c.post("/api/rating", {})).status, 400);
+  const r = await c.post("/api/rating", { productName: "Sony WH-1000XM5", brand: "Sony" });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.rating, null);
+});
+
 test("pro sales off: no upgrade offered or sold, free limit still enforced", async () => {
   process.env.PRO_SALES = "off";
   try {

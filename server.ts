@@ -21,6 +21,7 @@ import {
   groundedSources,
   type CouponResult,
 } from "./server/coupons";
+import { buildRatingPrompt, cleanRating, ratingCacheKey, type ProductRating } from "./server/ratings";
 
 dotenv.config();
 
@@ -945,6 +946,40 @@ app.post(["/api/coupons", "/api/coupons/"], async (req, res) => {
   }
 });
 
+// Real star rating: found with Google Search grounding, kept only when it cites a page Google returned.
+// Cached for a week (including "none found" for a day) so result screens don't each pay for a search.
+app.post(["/api/rating", "/api/rating/"], async (req, res) => {
+  const productName = typeof req.body?.productName === "string" ? req.body.productName.trim().slice(0, 200) : "";
+  const brand = typeof req.body?.brand === "string" ? req.body.brand.trim().slice(0, 80) : "";
+  if (productName.length < 2) return res.status(400).json({ success: false, error: "Product name required." });
+  if (!resolveGeminiKey().key || !SEARCH_GROUNDING) return res.json({ success: true, rating: null });
+  const db = getStore();
+  const key = `rating:v1:${hashShort(ratingCacheKey(productName, brand), 32)}`;
+  if (db) {
+    try {
+      const hit = await db.get<{ rating: ProductRating | null }>(key);
+      if (hit && "rating" in hit) return res.json({ success: true, rating: hit.rating, cached: true });
+    } catch {}
+  }
+  try {
+    const deadline = Date.now() + 40_000;
+    const ask = () =>
+      generateWithFallbackRaw(
+        { contents: buildRatingPrompt(productName, brand), config: { tools: [{ googleSearch: {} }], thinkingConfig: { thinkingLevel: COUPON_THINKING } } },
+        { deadline, perModelMs: 30_000 },
+      );
+    let { text, response } = await ask();
+    if (groundedSources(response).domains.size === 0 && deadline - Date.now() > 12_000) ({ text, response } = await ask());
+    const grounded = groundedSources(response);
+    const rating = cleanRating(extractAndParseJSON(text), grounded.domains, grounded.redirects);
+    if (db) await db.set(key, { rating }, { ex: rating ? 7 * 86400 : 86400 }).catch(() => {});
+    return res.json({ success: true, rating });
+  } catch (err: any) {
+    console.warn("Rating search failed:", err?.message || err);
+    return res.json({ success: true, rating: null });
+  }
+});
+
 /** Coupon search for the weekly coupon alerts. Shares the product coupon finder's day-long cache and checks. */
 async function findCouponsForAlert(productName: string, brand?: string) {
   if (!resolveGeminiKey().key || !SEARCH_GROUNDING) return [];
@@ -1106,6 +1141,7 @@ app.all("/api/*", (req, res) => {
       "/api/scan",
       "/api/ask",
       "/api/coupons",
+      "/api/rating",
       "/api/deals",
       "/api/autocomplete",
       "/api/local-stores",

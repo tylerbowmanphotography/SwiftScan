@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BuyTiming } from '../components/BuyTiming';
@@ -84,6 +84,7 @@ export default function ResultScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{r.productName}</Text>
             <Text style={styles.meta}>{[r.brand, r.category].filter(Boolean).join(' · ')}</Text>
+            <RatingRow r={r} />
           </View>
         </View>
         <View style={styles.identRow}>
@@ -426,6 +427,29 @@ function LocalStores({ r }: { r: ProductScanResult }) {
   );
 }
 
+function RatingRow({ r }: { r: ProductScanResult }) {
+  const [rating, setRating] = useState<api.ProductRating | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.findRating(r).then((v) => {
+      if (!cancelled) setRating(v);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [r]);
+  if (!rating) return null;
+  return (
+    <Pressable onPress={() => Linking.openURL(rating.sourceUrl).catch(() => {})} style={styles.ratingRow} accessibilityRole="link">
+      <Ionicons name="star" size={14} color="#fbbf24" />
+      <Text style={styles.ratingText}>
+        {rating.rating.toFixed(1)}
+        {rating.reviewCount ? ` (${rating.reviewCount.toLocaleString()})` : ''} · {rating.source}
+      </Text>
+    </Pressable>
+  );
+}
+
 function Coupons({ r }: { r: ProductScanResult }) {
   const [result, setResult] = useState<api.CouponSearch | null>(null);
   const [loading, setLoading] = useState(false);
@@ -509,6 +533,8 @@ const styles = StyleSheet.create({
   thumb: { width: 76, height: 76, borderRadius: 18, backgroundColor: colors.ink800 },
   name: { color: colors.text, fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
   meta: { color: colors.textMuted, fontSize: 14, marginTop: 3 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5 },
+  ratingText: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
   identRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -4 },
   identText: { color: colors.textMuted, fontSize: 13 },
   verdict: { borderRadius: radius.xl, padding: 20, gap: 8 },
