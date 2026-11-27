@@ -595,7 +595,7 @@ export function registerAlertRoutes(app: Express, estimate: PriceEstimator, find
 
   // ---- cron ----
 
-  // Weekly coupon alerts. Dry run unless ?send=1 AND COUPON_ALERTS_ENABLED=1; never scheduled.
+  // Weekly coupon alerts (Tuesdays via vercel.json). Sends only with ?send=1 AND COUPON_ALERTS_ENABLED=1; otherwise a dry run.
   app.get(["/api/cron/coupon-alerts", "/api/cron/coupon-alerts/"], async (req, res) => {
     const cronSecret = clean(process.env.CRON_SECRET);
     if (!cronSecret) return res.status(503).json({ success: false, error: "CRON_SECRET is not configured." });
