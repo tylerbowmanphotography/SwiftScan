@@ -168,6 +168,24 @@ export async function findCoupons(p: ProductScanResult): Promise<CouponSearch> {
   };
 }
 
+export interface ProductRating {
+  rating: number;
+  reviewCount?: number;
+  source: string;
+  sourceUrl: string;
+}
+
+/** A real star rating found on the web, or null. Never throws: ratings are optional. */
+export async function findRating(p: ProductScanResult): Promise<ProductRating | null> {
+  try {
+    const r = await post('/api/rating', { productName: p.productName, brand: p.brand }, 45000);
+    const v = r.ok && r.data?.success ? r.data.rating : null;
+    return v && typeof v.rating === 'number' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 export const DEAL_STORES = ['Amazon', 'Walmart', 'Target', 'Best Buy', 'Home Depot', "Lowe's", 'Costco', "Kohl's", 'Nike', 'Apple'] as const;
 
 export async function fetchDeals(store: string): Promise<CouponSearch> {

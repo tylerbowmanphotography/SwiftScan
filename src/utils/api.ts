@@ -176,6 +176,29 @@ export async function findCoupons(productName: string, brand?: string, category?
   return { coupons: data.coupons || [], links: data.links || [], searched: !!data.searched };
 }
 
+export interface ProductRating {
+  rating: number;
+  reviewCount?: number;
+  source: string;
+  sourceUrl: string;
+}
+
+/** A real star rating found on the web, or null. Never throws: ratings are optional. */
+export async function findRating(productName: string, brand?: string): Promise<ProductRating | null> {
+  try {
+    const res = await fetch('/api/rating', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ productName, brand }),
+    });
+    const data = await res.json().catch(() => ({}));
+    return res.ok && data.success && data.rating && typeof data.rating.rating === 'number' ? data.rating : null;
+  } catch {
+    return null;
+  }
+}
+
 export const DEAL_STORES = ['Amazon', 'Walmart', 'Target', 'Best Buy', 'Home Depot', "Lowe's", 'Costco', "Kohl's", 'Nike', 'Apple'] as const;
 
 export async function fetchDeals(store: string): Promise<CouponSearch> {
