@@ -4,5 +4,8 @@
   "functions": {
     "api/index.js": { "maxDuration": 60 }
   },
-  "crons": [{ "path": "/api/cron/check-alerts", "schedule": "0 14 * * *" }]
+  "crons": [
+    { "path": "/api/cron/check-alerts", "schedule": "0 14 * * *" },
+    { "path": "/api/cron/coupon-alerts?send=1", "schedule": "0 15 * * 2" }
+  ]
 }
