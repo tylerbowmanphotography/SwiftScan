@@ -13,6 +13,10 @@ export function DealsPage() {
   const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
+    document.title = 'Coupons and promo codes by store | SwiftScan';
+  }, []);
+
+  useEffect(() => {
     let live = true;
     setLoading(true);
     setError(null);
@@ -99,6 +103,15 @@ export function DealsPage() {
             ))}
           </div>
         )}
+        <p className="text-xs text-slate-500">
+          Store pages:{' '}
+          {DEAL_STORES.map((n, i) => (
+            <span key={n}>
+              {i > 0 ? ' · ' : ''}
+              <a className="underline" href={`/deals/${n.toLowerCase().replace(/[^a-z]+/g, n === "Best Buy" || n === "Home Depot" ? '-' : '')}`}>{n}</a>
+            </span>
+          ))}
+        </p>
         <p className="text-[11px] text-slate-500 flex items-start gap-1.5">
           <Info size={12} className="shrink-0 mt-0.5" />
           <span>SwiftScan does not pay cash back on these. {hasAffiliateIds() ? 'Some links may earn us a commission.' : ''}</span>
