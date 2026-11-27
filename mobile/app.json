@@ -61,8 +61,26 @@
       ],
       "expo-font",
       "expo-iap",
-      ["expo-notifications", { "enableRemoteNotifications": true }],
-      "expo-app-intents"
+      [
+        "expo-notifications",
+        {
+          "enableRemoteNotifications": true
+        }
+      ],
+      "expo-app-intents",
+      [
+        "expo-widgets",
+        {
+          "widgets": [
+            {
+              "name": "LastScanWidget",
+              "displayName": "Latest scan",
+              "description": "Your most recent scan with its deal verdict and fair price.",
+              "ios": { "supportedFamilies": ["systemSmall", "systemMedium"] }
+            }
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false,

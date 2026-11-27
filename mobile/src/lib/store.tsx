@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { updateLastScanWidget } from './widget';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import * as api from './api';
 import type { ProductScanResult, SavedScanItem } from './types';
@@ -77,6 +78,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loaded.current) return;
     AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history)).catch(() => {});
+    updateLastScanWidget(history[0]);
     if (user && syncedEmail.current === user.email) {
       if (pushTimer.current) clearTimeout(pushTimer.current);
       pushTimer.current = setTimeout(() => api.saveServerItems(history), 1200);
